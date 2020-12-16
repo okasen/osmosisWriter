@@ -1,0 +1,52 @@
+QWidget{
+  background-color: #d7c5d9;
+  font: 10pt "OpenDyslexic-Regular";
+}
+
+QMdiArea{
+  qproperty-background: transparent;
+}
+
+QMdiSubWindow:title{
+  height: 0px;
+}
+
+QMdiSubWindow{
+  border: 5px solid #47453c;
+  background-color: #f0ebf7
+}
+
+QAbstractScrollArea{
+  background-color: #e7dce8;
+}
+
+QPushButton{
+  background-color: #ba9eba;
+  border-radius: 10px;
+  border-width: 5px;
+  padding: 10px;
+}
+
+QComboBox{
+  background-color: #f7ebf7;
+  border: 0px;
+  padding: 10px;
+  font: 10pt "arial";
+}
+
+QMenuBar{
+  background-color: #f7ebf7;
+  border: 0px;
+  padding: 10px;
+  font: 10pt "arial";
+}
+
+QToolBar{
+  border-width: 10px;
+  font: 10pt "arial";
+}
+
+QLabel{
+  font-weight: bold;
+  font-size: 30px;
+}
