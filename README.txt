@@ -1,4 +1,4 @@
-Osmosis Writer ALPHA 1.0.1 README:
+Osmosis Writer ALPHA 1.0.2 README:
 
 Osmosis Writer is software for writing fiction novels chapter by chapter. 
 It is licensed under the GNU GPL3 and created by Jennifer Black, AKA @JenniLBlack on Twitter, Okasen on Github, and OkasenLun on Reddit.
@@ -23,34 +23,30 @@ Currently, it contains the following features:
 
 -exporting: You may export to a docx file.
 
-NEW IN ALPHA 1.0.1:
+-image support: you can now drag and drop images into osmosis writer and export files with them inside.
 
--new chapter button
--delete chapter button
--SO MANY bug fixes. So many.
--chapter recovery: If your program crashes after making a chapter but before saving, it will recover the chapter files (sort of)
--the chapter tabs now scroll, and the writer windows loop better now
+NEW IN ALPHA 1.0.2:
+
+-image support: you can now drag and drop images into osmosis writer and export files with them inside.
+-program remembers your layout choice per-session. See TO DO for persisting layout choices information.
+-bug fixes!
+-SaveFileAs works! It does, I swear!
 
 KNOWN BUGS:
 
-"Save as" can be unpredictable and requires more testing.
-Sometimes files seem to be saved outside the chapters directory, where they belong.
+...well, I don't /know/ any yet! Does that count?
 
 BUGS FIXED IN ALPHA 1.0.1
 
-Opening corrupted projects shouldn't crash the program anymore.
-loading an empty project only to start a new one will allow you to save without crashing
-save as can be cancelled now
-you aren't forced to pick a directory or name for a new project if you accidentally request to make one
-fixed an issue with openFile not clearing the screen of the last project. Maybe.
-Fixed font family choices resetting the text to itty bitty size.
-made the chapter deleter delete the last chapter if none are selected (instead of crashing)
-fixed "ghost chapters" preventing you from making new chapters of ones that didn't save
-fixed the prompt about "this chapter already exists". Now it actually prevents said duplication
-fixed projectPath not updating after a second load
-fixed an issue with the chapter tabs not liking deleting the ultimate chapter
-fixed a "no project found to export" bug
-fixed a bug that popped up after fixing all of this, where you couldn't save after deleting final chapters
+(Hopefully) fixed the chapters of previous projects remaining in the sidebar and related saving issues
+(Hopefully) solved the issue with small empty boxes appearing around the editor
+fixed numerous issues with saving
+removed the magic floating cancel button in certain dialogs
+removed Herobrine
+
+TODO:
+Make a preferences window that appears on startup ONCE and lets you set preferences like layout, font type/size, theme, etc. These settings will persist throughout sessions until told to forget.
+-there's a general need to optimize memory usage.
 
 ABOUT THE FILE TYPES:
 .OSM is the project file. It holds the locations of your chapters on your computer. 
