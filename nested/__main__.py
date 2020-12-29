@@ -11,791 +11,1159 @@ from PyQt5 import QtGui, QtCore, Qt
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
-from PyQt5.QtPrintSupport import *
+import uuid
 import os
+from os import listdir
+from os.path import isfile, join, expanduser
 import sys
 import re
+import shutil
 from functools import partial
+from bs4 import *
 from htmldocx import HtmlToDocx
 from pathlib import Path
+import logging
+    
+home = expanduser("~")
+logLocation = home + "\osmosisLog.log"
+print(logLocation)
 
-def main():
-    class fileAttributes:
-        def __init__(self):
-            self.isNew = True #defines if we're loading a file or starting new
-            self.isEdited = False #no file is edited before it is started!
-            self.projectPath = 'C:/untitled.txt'
-            self.projectTitle = "untitled"
-            self.projectSet = False
-            self.chapterFolder = ""
-            self.saveLocale = ""
-            self.projectFolder = ""
-            self.isNamed = False
-            self.contents = "test"
-            self.windowCount = 0
-            self.fileRequest = list() #might be defunct
-            self.openWindows = dict() #the windows that hold writers, in the order they were created
-            self.openCorrelation = dict() #just ensures that the keys in openWindows correlate to the correct keys in openWriters, and therefor, that the values are correct
-            self.openWriters = dict() #used to hold the actual writers that correspond to writer windows, correlated to an int
-            self.writerTabs = dict() #used to hold the actual tabs that correspond to writer windows, correlated to an int
-            self.chapterList = dict() #holds the chapter paths in order of how the user has organised them, and is used to create the main OSM file's structure
-            self.partName = "" #changes to hold the most recently added part's name
-            self.partDescription = "" #holds the part name with any special chars or spaces
-            self.chapterNames = dict() #chapter's path :: chapter's name, will not change with user input
-            self.chapterPath = dict() #chapter's path linked to a number that correlates with the name, to ensure chapters do not become mislabeled or lost
-            self.chapterOrder = dict() #stores the order on the user end
+IMAGE_EXTENSIONS = ['.jpg','.png','.bmp']
+
+def splitext(p):
+    return os.path.splitext(p)[1].lower() #borrowed from MegaSolid Idiom
     
-    fileAtts = fileAttributes()
+class fileAttributes:
+
+    def __init__(self):
+        
+        self.isNew = True  # defines if we're loading a file or starting new
+        self.isEdited = False  # no file is edited before it is started!
+        self.projectPath = ""
+        self.projectTitle = "untitled"
+        self.projectSet = False
+        self.chapterFolder = ""
+        self.saveLocale = os.path.expanduser('~') 
+        self.projectFolder = ""
+        self.contents = "test"
+        self.curChapterPath = ""
+        self.windowCount = 0
+        self.openWindows = dict()  # the windows that hold writers, in the order they were created
+        self.openWidgets = dict()  # holds the widgets that hold the layouts....
+        self.openLayouts = dict()  # hold the layouts in each window that hold the writers"
+        self.openLabels = dict()
+        self.openCorrelation = dict()  # just ensures that the keys in openWindows correlate to the correct keys in openWriters, and therefor, that the values are correct
+        self.openWriters = dict()  # used to hold the actual writers that correspond to writer windows, correlated to an int
+        self.writerTabs = dict()  # used to hold the actual tabs that correspond to writer windows, correlated to an int
+        self.chapterList = dict()  # holds the chapter paths in order of how the user has organised them, and is used to create the main OSM file's structure
+        self.partName = ""  # changes to hold the most recently added part's name
+        self.partDescription = ""  # holds the part name with any special chars or spaces
+        self.chapterNames = dict()  # chapter's path :: chapter's name, will not change with user input
+        self.chapterPath = dict()  # chapter's path linked to a number that correlates with the name, to ensure chapters do not become mislabeled or lost
     
-    class workTab(QPushButton):
+        self.chapterNameValid = False
+        self.themeChoice = ""
         
-        rearranged = pyqtSignal()
-            
+        self.images = 0
+        self.layoutChoice = "Big"
+    
+    
+fileAtts = fileAttributes()
+
+
+def styleChange():
+    styleSet()
+
+    
+class workArea(QMdiSubWindow):
+
+    def __init__(self, *args, **kwargs):
+        super(workArea, self).__init__(*args, **kwargs)
         
-        def __init__(self, label):
-            super().__init__()
-            #self.show()
-            self.setAcceptDrops(True)
-            #self.setGeometry(QRect(0,0,100,100))
-            self.setText(label)
-            self.text = label
-            
+        self.oldPos = self.pos()
+        self.pressed = False
         
-            
+    def mousePressEvent(self, event):
+        self.oldPos = event.globalPos()
+        self.pressed = True
+
+#    
+#     def mouseMoveEvent(self, event):
+#         if event.button == Qt.LeftButton():
+#             logging.info("movin")
+#    
+    def mouseMoveEvent(self, event):
+        if self.pressed:
+            logging.info(self.pressed)
+            delta = QPoint (event.globalPos() - self.oldPos)
+            logging.info(delta)
+            self.move(self.x() + delta.x(), self.y() + delta.y())
+            self.oldPos = event.globalPos()
         
-            
+    def mouseReleaseEvent(self, event):
+        self.pressed = False
+
+    
+class workTab(QPushButton):
+    
+    goIta = pyqtSignal()
+    goUL = pyqtSignal()
+    rearranged = pyqtSignal() 
+    
+    def __init__(self, label):
         
-        def mousePressEvent(self, e):
+        super().__init__()
+        # self.show()
+        self.setAcceptDrops(True)
+        # self.setGeometry(QRect(0,0,100,100))
+        self.setText(label)
+        self.text = label
+        self.setMinimumWidth(195)
+
+    def mousePressEvent(self, e):
+        super().mousePressEvent(e)
+        if e.button() == Qt.RightButton:
+            drag = QDrag(self)
+            mimeData = QMimeData()
+            dragPixmap = self.grab()
+        
+            drag.setMimeData(mimeData)
+            mimeData.setText(str(self.text))
                 
-            super().mousePressEvent(e)
-                
-            if e.button() == Qt.RightButton:
-                print('press')
-                
-                drag = QDrag(self)
-                mimeData = QMimeData()
-                dragPixmap = self.grab()
-            
-                drag.setMimeData(mimeData)
-                mimeData.setText(str(self.text))
+            drag.setPixmap(dragPixmap)
+            drag.setHotSpot(e.pos())
                     
-                drag.setPixmap(dragPixmap)
-                drag.setHotSpot(e.pos())
+            # self.setParent(None)
+            drag.exec_(Qt.CopyAction)
+                
+    def dragEnterEvent(self, e):
+        e.accept()
+            
+    def dropEvent(self, e):
+        location = e.source()
+        if isinstance(location, workTab):
+            l = self.text  # location
+            p = self  # place
+            st = e.mimeData().text()
+            localeOfSource = list(fileAtts.chapterNames.keys())[list(fileAtts.chapterNames.values()).index(st)]
+            numOfSource = list(fileAtts.chapterPath.keys())[list(fileAtts.chapterPath.values()).index(localeOfSource)]
+            
+            numOfDrop = list(fileAtts.writerTabs.keys())[list(fileAtts.writerTabs.values()).index(p)]  # find num of writerTab dropped on
+            switcher = dict()
+            x = 0
+            y = 0
+            z = 0
+            sourceSlot = 0  # the slot the tab came from
+            
+            logging.info("dropped", numOfSource, "in", numOfDrop)
+            
+            for i in fileAtts.writerTabs:
+                z = z + 1
+                if fileAtts.chapterList[z] == localeOfSource:
+                        sourceSlot = z
+                        logging.info("source slot")
+                        logging.info(sourceSlot)
                         
-                #self.setParent(None)
-                drag.exec_(Qt.CopyAction)
-                    
-        def dragEnterEvent(self, e):
-            print(e.pos)
-            e.accept()
-                
-        def dropEvent(self, e):
-            
-            
-            #sourceText = str(e.mimeData().text())
-            location = e.source()
-            if isinstance(location, workTab):
-                l = self.text #location
-                p = self #place
-                st = e.mimeData().text()
-                localeOfSource = list(fileAtts.chapterNames.keys())[list(fileAtts.chapterNames.values()).index(st)]
-                numOfSource = list(fileAtts.chapterPath.keys())[list(fileAtts.chapterPath.values()).index(localeOfSource)]
-                
-                numOfDrop = list(fileAtts.writerTabs.keys())[list(fileAtts.writerTabs.values()).index(p)] #find num of writerTab dropped on
-                #frex, you drop #1 at #3, pos:holding, 1:2, 2:3, 3:1, 4:4
-                #frex, you drop #4 at #2, pos:holding, 1:1, 2:4, 3:2, 4:3
-                switcher = dict()
-                x = 0
-                y = 0
-                z = 0
-                run = False
-                 #checks if a specific method has run
-                sourceSlot = 0 #the slot the tab came from
-                
-                print("dropped", numOfSource, "in", numOfDrop)
-                #example of two sequences that cause issues, moving a number back into its original slot
-                #1111 2222 333 4444
-                #four one two three
-                #four two one three
+            if sourceSlot == numOfDrop:
+                # do nothing
                 for i in fileAtts.writerTabs:
-                    z = z + 1
+                        x = x + 1
+                        y = y + 1
+                        switcher[x] = fileAtts.chapterList[y]
                         
-                    if fileAtts.chapterList[z] == localeOfSource:
-                            sourceSlot = z
-                            print("source slot", sourceSlot)
-                            
-                if sourceSlot == numOfDrop:
-                    #do nothing
-                    for i in fileAtts.writerTabs:
-                            x = x + 1
-                            y = y + 1
-                            switcher[x] = fileAtts.chapterList[y]
-                            
-                elif sourceSlot > numOfDrop:
-                    for i in fileAtts.writerTabs:
-                        x = x + 1 #determines where is slotted
-                        y = y + 1 #determines what is slotted
-                        print("x, y", x, y)
-                        if x == numOfDrop:
-                            switcher[x] = fileAtts.chapterList[sourceSlot]
-                            y = y - 1 #we want to grab what was in the numOfDrop now
-                        elif x == sourceSlot:
-                            switcher[x] = fileAtts.chapterList[y]
-                            y = y + 1 #realign x and y
-                        else:
-                            switcher[x] = fileAtts.chapterList[y]
-                        print("new", x, y)
-                        
-                elif sourceSlot < numOfDrop:
-                    for i in fileAtts.writerTabs:
-                        x = x + 1 #determines where is slotted
-                        y = y + 1 #determines what is slotted
-                        print("x, y", x, y)
-                        if sourceSlot == numOfDrop - 1:
-                            switcher[x] = fileAtts.chapterList[y] #if you're trying to drag a piece into itself, essentially
-                        elif x == numOfDrop - 1: #you're placing ABOVE the drop num
-                            switcher[x] = fileAtts.chapterList[sourceSlot]
-                            y = y - 1 #realign x and y
-                        elif x == sourceSlot:
-                            y = y + 1
-                            switcher[x] = fileAtts.chapterList[y]
-                        else:
-                            switcher[x] = fileAtts.chapterList[y]
-                        print("new", x, y)
-                        
-                print("Dogbean")
-                print(switcher)
-                q = 0
-                for i in switcher:
-                    q = q + 1
-                    print(q)
-                    fileAtts.chapterList[q] = switcher[q]
-                self.rearranged.emit()
-            else:
-                e.ignore
-        
-        
-            
-    class workspaceTemplate(QTextEdit):
-        def __init__(self, *args, **kwargs):
-            super(workspaceTemplate, self).__init__(*args, **kwargs)
-            #self.workspace.selectionChanged.connect(self.update_format) #Getting the QTextEdit basics in
-            self.font = QFont('Courier', 18)
-            self.setFont(self.font)
-            self.setFontPointSize(14)
-            self.setPlaceholderText("Blank pages are intimidating, so we put these words here.")
-            #self.setAutoFormatting(QTextEdit.AutoAll)
-            
-            
-    class doStart(QDialog):
-        def __init__(self, *args, **kwargs):
-            super(doStart, self).__init__(*args, **kwargs)
-            layout = QVBoxLayout()
-            self.setGeometry(QRect(200,200,400,200))
-            self.setLayout(layout)
-            #self.addLayout(layout)
-            self.isModal()
-            projectNamer = QLineEdit()
-            projectNamer.setPlaceholderText("enter your project title here")
-            button = QPushButton("confirm title and choose project folder")
-            button.setEnabled(False)
-            def getTitle():
-                fileAtts.projectTitle = projectNamer.text()
-            def buttonToggle():
-                button.setEnabled(True)
-            def makeNew():    
-                
-                dialog = QFileDialog(self)
-                dialog.setFileMode(QFileDialog.Directory)
-                fileAtts.saveLocale = dialog.getExistingDirectory()
-                if True:                    
-                    fileAtts.projectFolder = fileAtts.saveLocale + "/" + fileAtts.projectTitle + "/"       
-                    if os.path.exists(fileAtts.projectFolder):
-                        print("This project already exists in this directory. Open the existing project, or create something new?")
-                        errorNote = QMessageBox(self)
-                        errorNote.setWindowTitle("Error")
-                        errorNote.setText("A project with this title already exists in this folder. Please enter a new title or select a different folder.")
-                        errorNote.setStandardButtons(QMessageBox.Ok)
-                        errorNote.exec()
+            elif sourceSlot > numOfDrop:
+                for i in fileAtts.writerTabs:
+                    x = x + 1  # determines where is slotted
+                    y = y + 1  # determines what is slotted
+                    if x == numOfDrop:
+                        switcher[x] = fileAtts.chapterList[sourceSlot]
+                        y = y - 1  # we want to grab what was in the numOfDrop now
+                    elif x == sourceSlot:
+                        switcher[x] = fileAtts.chapterList[y]
+                        y = y + 1  # realign x and y
                     else:
-                        os.mkdir(fileAtts.projectFolder)
-                        fileAtts.projectPath = fileAtts.projectFolder + "/" + fileAtts.projectTitle + ".osm"
-                        fileAtts.projectSet = True
-                        with open(fileAtts.projectPath, 'w+') as f: #creating the main OSM file
-                            f.write("")
-                        fileAtts.chapterFolder = fileAtts.projectFolder + "chapters/"
-                        os.mkdir(fileAtts.chapterFolder)
-            projectNamer.textChanged.connect(buttonToggle)
-            layout.addWidget(projectNamer)
-            layout.addWidget(button)
-            button.clicked.connect(getTitle)
-            button.clicked.connect(makeNew)
-            button.clicked.connect(self.accept)
-            #self.addWidget(button)
-                    
-            self.exec()         
-        
-        
-    class titleGiver(QDialog):
-        def __init__(self, *args, **kwargs):
-            super(titleGiver, self).__init__(*args, **kwargs)
-            layout = QVBoxLayout()
-            self.setGeometry(QRect(200,200,400,200))
-            self.setLayout(layout)
-            #self.addLayout(layout)
-            self.isModal()
-            partNamer = QLineEdit()
-            partNamer.setPlaceholderText("enter a brief chapter title here")
-            button = QPushButton("confirm")
-            button.setEnabled(False)
-            def getTitle():
-                fileAtts.partDescription = partNamer.text()
-                cleanName = re.sub('[^A-Za-z0-9 ]+', '', fileAtts.partDescription)
-                print("Squeaky clean", cleanName)
-                fileAtts.partName = cleanName
-            def buttonToggle():
-                button.setEnabled(True)
-            def makeNewPart():                
-                fileAtts.chapterPath[fileAtts.windowCount] = fileAtts.chapterFolder + fileAtts.partName + ".osm"
-                print(fileAtts.chapterPath)
-                if os.path.exists(fileAtts.chapterPath[fileAtts.windowCount]):
-                    print("This chapter title already exists in this directory. Please choose a new title")
-                    errorNote = QMessageBox(self)
-                    errorNote.setWindowTitle("Error")
-                    errorNote.setText("This chapter title already exists in this directory. Please choose a new title")
-                    errorNote.setStandardButtons(QMessageBox.Ok)
-                    errorNote.exec()
-                else:
-                    print("making a scene for", fileAtts.windowCount)
-                    with open(fileAtts.chapterPath[fileAtts.windowCount], 'w+') as f: #creating the main OSM file
-                        f.write("")
-            partNamer.textChanged.connect(buttonToggle)
-            layout.addWidget(partNamer)
-            layout.addWidget(button)
-            button.clicked.connect(getTitle)
-            button.clicked.connect(makeNewPart)
-            button.clicked.connect(self.accept)
-            #self.addWidget(button)
-                    
-            self.exec()         
-    
-     
-    class osmosisWriter(QMainWindow):
-        
-        resetting = QtCore.pyqtSignal()     
-           
-        def __init__(self, *args, **kwargs):
-            super(osmosisWriter, self).__init__(*args, **kwargs)
-            
-            
-            self.mainScreen = QWidget()
-            self.mainLayout = QGridLayout()
-            self.setGeometry(QRect(100, 100, 800, 600))
-            self.workTabs = QGridLayout()
-            self.mdiLayout = QMdiArea()
-            #self.mdiLayout.setOption()
-            self.mainScreen.setLayout(self.mainLayout)
-            
-            self.mainLayout.addLayout(self.workTabs, 1,0, Qt.AlignTop)
-            self.mainLayout.addWidget(self.mdiLayout, 1,1, Qt.AlignRight)
-            self.setCentralWidget(self.mainScreen)    
-           
-            self.mainScreen.show()
-            
-            
-            self.workspace = workspaceTemplate()
-            
-            def reTriggerTabs():
-                for i in fileAtts.writerTabs:
-                    print(i)
-                    fileAtts.writerTabs[i].rearranged.connect(self.resetTabs)
-            
-            self.resetting.connect(reTriggerTabs)
-            
-            '''
-            for i in fileAtts.writerTabs:
-                reset = self.resetTabs
-                print("ba")
-                fileAtts.writerTabs[i].rearranged.connect(lambda: self.resetTabs())
-                print("near")
-               '''
-        
-           
-            
-            #resetter = self.resetTabs()        
-            
-            
-            
-            
-            #starting config
-            
-            
-            def onStart():
-                self.newButton = QPushButton("Start a new project")
-                self.openButton = QPushButton("Open an existing Osmosis project")
-         
-                self.newButton.clicked.connect(partial(startupHandler,value=1))
-                self.openButton.clicked.connect(partial(startupHandler,value=2))
-       
-                self.workTabs.addWidget(self.newButton)
-                self.workTabs.addWidget(self.openButton)
-                self.newButton.show()
-                self.openButton.show()
-      
+                        switcher[x] = fileAtts.chapterList[y]
                         
-            def startNew():
-                self.newButton.setParent(None)
-                self.openButton.setParent(None)
-                fileAtts.isNew = True
-                while fileAtts.projectSet == False:
-                    doStart()
-                self.mdiLayout.show()
-                self.newChapter()
-                
-            def startOpen():
-                self.newButton.setParent(None)
-                self.openButton.setParent(None)
-                fileAtts.isNew = False
-                self.mdiLayout.show()
-                self.openFile()
-            
-            def startupHandler(self, value):
-                print("got it")
-                if value == 1:
-                    print("new")
-                    startNew()
-                    #fileAtts.isNew = True
-                    #self.mdiLayout.show()
-                    #self.newChapter()
+            elif sourceSlot < numOfDrop:
+                for i in fileAtts.writerTabs:
+                    x = x + 1  # determines where is slotted
+                    y = y + 1  # determines what is slotted
+                    if sourceSlot == numOfDrop - 1:
+                        switcher[x] = fileAtts.chapterList[y]  # if you're trying to drag a piece into itself, essentially
+                    elif x == numOfDrop - 1:  # you're placing ABOVE the drop num
+                        switcher[x] = fileAtts.chapterList[sourceSlot]
+                        y = y - 1  # realign x and y
+                    elif x == sourceSlot:
+                        y = y + 1
+                        switcher[x] = fileAtts.chapterList[y]
+                    else:
+                        switcher[x] = fileAtts.chapterList[y]
                     
-                    
+            q = 0
+            for i in switcher:
+                q = q + 1
+                fileAtts.chapterList[q] = switcher[q]
+            self.rearranged.emit()
+        else:
+            e.ignore
+
+    
+class workspaceTemplate(QTextEdit):
+
+    def __init__(self, *args, **kwargs):
+        super(workspaceTemplate, self).__init__(*args, **kwargs)
+        # self.workspace.selectionChanged.connect(self.update_format) #Getting the QTextEdit basics in
+    
+        self.setFontPointSize(14)
+        self.setPlaceholderText("Blank pages are intimidating, so we put these words here.")
+        self.setAutoFormatting(QTextEdit.AutoAll)
+
+    def canInsertFromMimeData(self, source):
+        if source.hasImage:
+            print("this is fine")
+            return True
+        else:
+            print("this is not fine")
+            return super(workspaceTemplate, self).canInsertFromMimeData(source)
+        
+    def insertFromMimeData(self, source):
+        print("inserting image")
+        cursor = self.textCursor()
+        chapter = self.document()
+        if source.hasUrls():
+            for u in source.urls():
+                fileExt = splitext(str(u.toLocalFile()))
+                if u.isLocalFile() and fileExt in IMAGE_EXTENSIONS:
+                    image = QImage(u.toLocalFile())
+                    chapter.addResource(QTextDocument.ImageResource, u, image)
+                    cursor.insertImage(u.toLocalFile())
+
                 else:
-                    print("existing")
-                    startOpen()
+                    # If we hit a non-image or non-local URL break the loop and fall out
+                    # to the super call & let Qt handle it
+                    break
+
+            else:
+                # If all were valid images, finish here.
+                return
+        
+        elif source.hasImage():
+            image = source.imageData
+            imageId = uuid()
+            chapter.addResource(QTextDocument.ImageResource, imageId, image)
+            cursor.insertImage(imageId)
+            return
+        else:
+            print("not an image, I guess")
+            
+        super(workspaceTemplate, self).insertFromMimeData(source)
     
+class newProjectAtStart(QDialog):
+
+    def __init__(self, *args, **kwargs):
+        super(newProjectAtStart, self).__init__(*args, **kwargs)
+        layout = QVBoxLayout()
+        self.setGeometry(QRect(200, 200, 400, 200))
+        self.setLayout(layout)
+        # self.addLayout(layout)
+        self.isModal()
+        projectNamer = QLineEdit()
+        projectNamer.setPlaceholderText("enter your project title here")
+        button = QPushButton("confirm title and choose project folder")
+        button.setEnabled(False)
+        cancel = QPushButton("cancel")
+
+        def getTitle():
+            fileAtts.projectTitle = projectNamer.text()
+            cleanName = re.sub('[^A-Za-z0-9 ]+', '', fileAtts.projectTitle)
+            fileAtts.projectTitle = cleanName    
+
+        def buttonToggle():
+            button.setEnabled(True)
+            
+        def makeNew():
+            logging.info("making a new project")
+            dialog = QFileDialog(self)
+            dialog.setFileMode(QFileDialog.Directory)
+            fileAtts.saveLocale = dialog.getExistingDirectory()
+                          
+            fileAtts.projectFolder = fileAtts.saveLocale + "/" + fileAtts.projectTitle + "/"       
+            if os.path.exists(fileAtts.projectFolder):
+                logging.info("This project already exists in this directory. Open the existing project, or create something new?")
+                errorNote = QMessageBox(self)
+                errorNote.setWindowTitle("Error")
+                errorNote.setText("A project with this title already exists in this folder. Please enter a new title or select a different folder.")
+                errorNote.setStandardButtons(QMessageBox.Ok)
+                errorNote.exec()
+            else:
+                os.mkdir(fileAtts.projectFolder)
+                fileAtts.projectPath = fileAtts.projectFolder + "/" + fileAtts.projectTitle + ".osm"
+                fileAtts.projectSet = True
+                with open(fileAtts.projectPath, 'w+') as f:  # creating the main OSM file
+                    f.write("")
+                fileAtts.chapterFolder = fileAtts.projectFolder + "chapters/"
+                os.mkdir(fileAtts.chapterFolder)
+                logging.info("chapter folder made")
+                
+        def cancelPrompt():
+            logging.info("Oops! No new project created.")
                     
-                    
-            onStart()
+        projectNamer.textChanged.connect(buttonToggle)
+        layout.addWidget(projectNamer)
+        layout.addWidget(button)
+        layout.addWidget(cancel)
+        button.clicked.connect(getTitle)
+        button.clicked.connect(makeNew)
+        button.clicked.connect(self.accept)  
+         
+        cancel.clicked.connect(cancelPrompt) 
+        cancel.clicked.connect(self.reject) 
         
-        
-        
-        
-            
-             #we start with no windows
-            
-            
-            #mdiLayout.addSubWindow(self.workspaceWindow) #put the workspace in the layout
-            
-            #begin File toolbar
-            
-            mainMenu = QToolBar("File")
-            fileMenu = self.menuBar().addMenu("&File")
-            
-            newAction = QAction("New Project", self)
-            newAction.triggered.connect(self.newProject)
-            fileMenu.addAction(newAction)
-            
-            saveAction = QAction("Save", self)
-            saveAction.triggered.connect(self.saveFile)
-            fileMenu.addAction(saveAction)
-            
-            saveAsAction = QAction("Save As", self)
-            saveAsAction.triggered.connect(self.saveFileAs)
-            fileMenu.addAction(saveAction)
-            
-            openAction = QAction("Open", self)
-            openAction.triggered.connect(self.loadCheck)
-            fileMenu.addAction(openAction)
-            
-            exportAction = QAction("Export", self)
-            exportAction.triggered.connect(self.exportFile)
-            fileMenu.addAction(exportAction)
-            
-            #begin edit toolbar
-        
-            editMenu = QToolBar("Edit")
-            editMenu = self.menuBar().addMenu("&Edit")
-            
-            undoAction = QAction("Undo", self)
-            undoAction.triggered.connect(self.workspace.undo)
-            editMenu.addAction(undoAction)
-            
-            redoAction = QAction("Redo", self)
-            redoAction.triggered.connect(self.workspace.redo)
-            editMenu.addAction(redoAction)
-            
-            cutAction = QAction("Cut", self)
-            cutAction.triggered.connect(self.workspace.cut)
-            editMenu.addAction(cutAction)
-            
-            copyAction = QAction("Copy", self)
-            copyAction.triggered.connect(self.workspace.copy)
-            editMenu.addAction(copyAction)
-            
-            pasteAction = QAction("Paste", self)
-            pasteAction.triggered.connect(self.workspace.paste)
-            editMenu.addAction(pasteAction)
-            
-            #begin formatting options + menu
-            
-            self.makeBold = QAction("Bold", self)
-            self.makeBold.setShortcut(QKeySequence.Bold)
-            self.makeBold.setCheckable(True)
-            self.makeBold.toggled.connect(lambda x: self.workspace.setFontWeight(QFont.Bold if x else QFont.Normal))
-            
-            self.makeIta = QAction("Italic", self)
-            self.makeIta.setShortcut(QKeySequence.Italic)
-            self.makeIta.setCheckable(True)
-            self.makeIta.toggled.connect(self.workspace.setFontItalic)
-            
-            self.makeUL = QAction("Underline", self)
-            self.makeUL.setShortcut(QKeySequence.Underline)
-            self.makeUL.setCheckable(True)
-            self.makeUL.toggled.connect(self.workspace.setFontUnderline)
-            
-            formatMenu = QToolBar("Format")
-            formatMenu = self.menuBar().addMenu("&Format")
-            formatMenu.addAction(self.makeBold)
-            formatMenu.addAction(self.makeIta)
-            formatMenu.addAction(self.makeUL)
-            
-            #begin the chapter toolbar
-            chapterMenu = QToolBar("Chapters")
-            chapterMenu = self.menuBar().addMenu("&Chapters")
-            newAction = QAction("New chapter", self)
-            newAction.triggered.connect(self.newChapter)
-            chapterMenu.addAction(newAction)
-            
-            #begin the section for laying out docs
-            self.casWindows = QAction("Cascading", self)
-            self.casWindows.triggered.connect(self.mdiLayout.cascadeSubWindows)
-            
-            self.tileWindows = QAction("Tiled", self)
-            self.tileWindows.triggered.connect(self.mdiLayout.tileSubWindows)
-            
-            layoutMenu = QToolBar("Layout")
-            layoutMenu = self.menuBar().addMenu("&Layout")
-            layoutMenu.addAction(self.casWindows)
-            layoutMenu.addAction(self.tileWindows)
-            
-            #begin font section
-            
-            fontToolbar = QToolBar("Font Choices")
-            self.addToolBar(fontToolbar)
-            self.fonts = QFontComboBox()
-            self.fonts.currentFontChanged.connect(self.workspace.setFont)
-            fontToolbar.addWidget(self.fonts)
-            
-            self.fontsize = QComboBox()
-            self.fontsize.addItems(["14", "18", "24"])
-            self.fontsize.currentIndexChanged[str].connect(lambda s: self.workspace.setFontPointSize(float(s)) )
-            fontToolbar.addWidget(self.fontsize)
-            
-            self.show()
-     
-            
-        
+        self.exec()         
+
     
+class titleGiver(QDialog):
+
+    def __init__(self, *args, **kwargs):
+        super(titleGiver, self).__init__(*args, **kwargs)
+        layout = QVBoxLayout()
+        self.setGeometry(QRect(200, 200, 400, 200))
+        self.setLayout(layout)
+        self.isModal()
+        partNamer = QLineEdit()
+        partNamer.setPlaceholderText("enter a brief chapter title here")
+        button = QPushButton("confirm")
+        button.setEnabled(False)
+
+        def getTitle():
+            fileAtts.partDescription = partNamer.text()
+            logging.info(fileAtts.partDescription + " cleaned to")
+            cleanName = re.sub('[^A-Za-z0-9 ]+', '', fileAtts.partDescription)
+            fileAtts.partName = cleanName
+            logging.info(fileAtts.partName)
+            fileAtts.chapterPath[fileAtts.windowCount] = fileAtts.chapterFolder + fileAtts.partName + ".osmc"
+            if os.path.exists(fileAtts.chapterPath[fileAtts.windowCount]):
+                logging.info("This chapter title already exists in this directory. Please choose a new title")
+                errorNote = QMessageBox(self)
+                errorNote.setWindowTitle("Error")
+                errorNote.setText("This chapter title already exists in this directory. Please choose a new title")
+                errorNote.setStandardButtons(QMessageBox.Ok)
+                errorNote.exec()
+            else:
+                fileAtts.chapterNameValid = True
+
+        def buttonToggle():
+            button.setEnabled(True)
+
+        def makeNewPart(): 
+            logging.info("making new chapter")  
+            with open(fileAtts.chapterPath[fileAtts.windowCount], 'w+') as f:  # creating the main OSM file
+                f.write("")
+            self.accept()
+
+        partNamer.textChanged.connect(buttonToggle)
+        layout.addWidget(partNamer)
+        layout.addWidget(button)
+        button.clicked.connect(getTitle)
+        button.clicked.connect(makeNewPart)
+                 
+        self.exec()         
+
+
+class osmosisWriter(QMainWindow):
     
-        def resetTabs(self):
+    resetting = QtCore.pyqtSignal()     
+       
+    def __init__(self, *args, **kwargs):
+        super(osmosisWriter, self).__init__(*args, **kwargs)
+        
+        self.saveAsk = QDialog()
+        self.failedAsk = QDialog()
+        
+        self.startSplash = QWidget()
+        
+        self.mainScreen = QWidget()
+        self.mainLayout = QGridLayout()
+        self.setGeometry(QRect(50, 50, 1600, 800))
+        scrollHolder = QVBoxLayout()
+        self.workTabHolder = QWidget()
+        self.workTabs = QGridLayout()
+        self.mdiLayout = QMdiArea()
+        self.mainScreen.setLayout(self.mainLayout)
+        
+        self.workTabs.setGeometry(QRect(0, 0, 400, 800))
+        
+        self.workTabs.setSizeConstraint(QLayout.SetFixedSize)
+        
+        self.scroll = QScrollArea()
+        self.scroll.setWidget(self.workTabHolder)
+        self.scroll.setWidgetResizable(True)
+        scrollHolder.addWidget(self.scroll)
+
+        self.mainLayout.addLayout(scrollHolder, 1, 0, Qt.AlignTop)
+        self.mainLayout.addWidget(self.startSplash, 1, 1, Qt.AlignRight)
+        self.mainLayout.addWidget(self.mdiLayout, 1, 1, Qt.AlignRight)
+        self.setCentralWidget(self.mainScreen)  
+        
+        self.workTabHolder.setLayout(self.workTabs)
+       
+        self.mainScreen.show()
+        
+        self.workspace = workspaceTemplate()
+        
+        self.newButton = QPushButton("Start a new print project")
+        self.openButton = QPushButton("Open an existing Osmosis project")
+        
+        def reTriggerTabs():
             for i in fileAtts.writerTabs:
-                fileAtts.writerTabs[i].setParent(None)
+                fileAtts.writerTabs[i].rearranged.connect(self.resetTabs)
+        
+        self.resetting.connect(reTriggerTabs)
+        
+        def startMenu():
+            logging.info("start menu start!")
+            self.newButton.clicked.connect(partial(startupHandler, value=1))
+            self.openButton.clicked.connect(partial(startupHandler, value=2))
+   
+            self.workTabs.addWidget(self.newButton)
+            self.workTabs.addWidget(self.openButton)
+            self.newButton.show()
+            self.openButton.show()
+            self.openButton.adjustSize()
+            logging.info(self.openButton.width())
+            self.scroll.setMinimumWidth(self.openButton.width() + 86)
+                    
+        def startNew():
+            logging.info("starting a new project")
+            fileAtts.isNew = True
+            fileAtts.projectSet = False
+            logging.info("About to newProjectAtStart")
+            newProjectAtStart()
+            if fileAtts.projectSet == True:
+                self.newButton.setParent(None)
+                self.openButton.setParent(None)
+                self.newChapter()
+                self.layoutChoose()
+                self.mdiLayout.show()
+                chapterMenu.setEnabled(True)
+                layoutMenu.setEnabled(True)
+                formatMenu.setEnabled(True)
+                editMenu.setEnabled(True)
+            
+        def startOpen():
+            logging.info("about to open file")
+            self.openAttempt()
+            if fileAtts.projectSet == True:
+                self.mdiLayout.show()
+                self.newButton.setParent(None)
+                self.openButton.setParent(None)
+                chapterMenu.setEnabled(True)
+                layoutMenu.setEnabled(True)
+                formatMenu.setEnabled(True)
+                editMenu.setEnabled(True)
+            else:
+                logging.info("project not set")
+                return
+                
+        def startupHandler(self, value):
+            if value == 1:
+                startNew()
+            else:
+                startOpen()
+                
+        startMenu()
+
+        mainMenu = QToolBar("File")
+        fileMenu = self.menuBar().addMenu("&File")
+        
+        newAction = QAction("New Project", self)
+        newAction.triggered.connect(self.newProject)
+        fileMenu.addAction(newAction)
+        
+        saveAction = QAction("Save Project", self)
+        saveAction.triggered.connect(self.saveFile)
+        fileMenu.addAction(saveAction)
+        
+        saveAsAction = QAction("Save As", self)
+        saveAsAction.triggered.connect(self.saveFileAs)
+        fileMenu.addAction(saveAsAction)
+        
+        openAction = QAction("Open Project", self)
+        openAction.triggered.connect(lambda: self.savePopup("open"))
+        fileMenu.addAction(openAction)
+        
+        exportAction = QAction("Export", self)
+        exportAction.triggered.connect(self.exportFile)
+        fileMenu.addAction(exportAction)
+        
+        # begin edit toolbar
+    
+        editMenu = QToolBar("Edit")
+        editMenu = self.menuBar().addMenu("&Edit")
+        
+        undoAction = QAction("Undo", self)
+        undoAction.triggered.connect(lambda: self.ctrlActions("undo"))
+        editMenu.addAction(undoAction)
+        
+        redoAction = QAction("Redo", self)
+        redoAction.triggered.connect(lambda: self.ctrlActions("redo"))
+        editMenu.addAction(redoAction)
+        
+        cutAction = QAction("Cut", self)
+        cutAction.triggered.connect(lambda: self.ctrlActions("cut"))
+        editMenu.addAction(cutAction)
+        
+        copyAction = QAction("Copy", self)
+        copyAction.triggered.connect(lambda: self.ctrlActions("copy"))
+        editMenu.addAction(copyAction)
+        
+        pasteAction = QAction("Paste", self)
+        pasteAction.triggered.connect(lambda: self.ctrlActions("paste"))
+        editMenu.addAction(pasteAction)
+        
+        editMenu.setEnabled(False)
+        
+        # begin formatting options + menu
+        
+        self.bolded = False
+        self.italic = False
+        self.ul = False
+        
+        self.makeBold = QAction("Bold", self)
+        self.makeBold.setShortcut(QKeySequence.Bold)
+        self.makeBold.setCheckable(True)
+        self.makeBold.toggled.connect(self.bold)
+            
+        self.makeIta = QAction("Italic", self)
+        self.makeIta.setShortcut(QKeySequence.Italic)
+        self.makeIta.setCheckable(True)
+        self.makeIta.toggled.connect(self.setItalic)
+        
+        self.makeUL = QAction("Underline", self)
+        self.makeUL.setShortcut(QKeySequence.Underline)
+        self.makeUL.setCheckable(True)
+        self.makeUL.toggled.connect(self.under)
+        
+        formatMenu = QToolBar("Format")
+        formatMenu = self.menuBar().addMenu("&Format")
+        formatMenu.addAction(self.makeBold)
+        formatMenu.addAction(self.makeIta)
+        formatMenu.addAction(self.makeUL)
+        
+        formatMenu.setEnabled(False)
+        
+        # begin the chapter toolbar
+        
+        chapterMenu = QToolBar("Chapters")
+        chapterMenu = self.menuBar().addMenu("&Chapters")
+        newAction = QAction("New chapter", self)
+        newAction.triggered.connect(self.newChapter)
+        chapterMenu.addAction(newAction)
+        
+        delAction = QAction("Delete current chapter", self)
+        delAction.triggered.connect(self.deleteChapter)
+        chapterMenu.addAction(delAction)
+        
+        chapterMenu.setEnabled(False)
+        
+        # begin the section for laying out docs
+        
+        self.casWindows = QAction("Smaller Cascading", self)
+        self.casWindows.triggered.connect(self.smallCascade)
+        
+        self.tileWindows = QAction("Tiled", self)
+        self.tileWindows.triggered.connect(self.tileMdiWindows)
+        
+        self.bigWindows = QAction("Bigger Cascading", self)
+        self.bigWindows.triggered.connect(self.bigCascade)
+        
+        self.maxWindows = QAction("Maximised", self)
+        self.maxWindows.triggered.connect(self.maximizeMainWindow)
+        
+        layoutMenu = QToolBar("Layout")
+        layoutMenu = self.menuBar().addMenu("&Layout")
+        layoutMenu.addAction(self.casWindows)
+        layoutMenu.addAction(self.tileWindows)
+        layoutMenu.addAction(self.bigWindows)
+        layoutMenu.addAction(self.maxWindows)
+        
+        layoutMenu.setEnabled(False)
+        
+        # begin font section
+        fontToolbar = QToolBar("Font Choices")
+        self.fontsize = QComboBox()
+        self.fontsize.addItems(["14", "18", "24"])
+        self.fontsize.currentIndexChanged[str].connect(lambda s: self.fontSize(float(s)))
+        fontToolbar.addWidget(self.fontsize)
+        
+        self.addToolBar(fontToolbar)
+        self.fonts = QFontComboBox()
+        self.fonts.currentFontChanged.connect(self.fontFamily)
+        fontToolbar.addWidget(self.fonts)
+        
+        chapterToolbar = QToolBar("Chapter Tools")
+        self.newChap = QPushButton("New Chapter")
+        self.delChap = QPushButton("Delete Chapter")
+        self.newChap.pressed.connect(self.newChapter)
+        self.delChap.pressed.connect(self.deleteChapter)
+        fontToolbar.addWidget(self.newChap)
+        fontToolbar.addWidget(self.delChap)
+        self.addToolBar(chapterToolbar)
+        
+        # begin theme section
+        themeMenu = self.menuBar().addMenu("&Theme")
+        self.themePicker = QAction("Pick a theme", self)
+        self.themePicker.triggered.connect(self.styleChange)
+        themeMenu.addAction(self.themePicker)
+        
+        self.show()
+    
+    def styleChange(self):
+        styleSet()
+        
+    def smallCascade(self):
+        self.mdiLayout.cascadeSubWindows()
+        fileAtts.layoutChoice = "Small"
+        
+    def bigCascade(self):
+        y = 0
+        x = 0
+        xOffset = 0
+        self.mdiLayout.cascadeSubWindows()
+        for i in fileAtts.openWindows:
+            xCascader = x * 40
+            yCascader = y * 40
+            fileAtts.openWindows[i].setGeometry(QRect(xCascader + xOffset, yCascader, 700, 500))
+            x = x + 1
+            y = y + 1
+            if y == 11:  # to prevent the tiles from going endlessly offscreen to the bottom right
+                y = 0
+                xOffset = xOffset + 40
+                x = 0
+        fileAtts.layoutChoice = "Big"
+            
+    def maximizeMainWindow(self):
+        try:
+            window = self.checkWindowActive()
+            fileAtts.openWindows[window].showMaximized()
+        except:
+            logging.info("no window activated")
+        
+        def keyPressEvent(self, *args, **kwargs):
+            if fileAtts.isEdited == False:  # prevents isEdited from being changed when already true
+                fileAtts.isEdited = True
+            return QTextEdit.keyPressEvent(self, *args, **kwargs)
+        fileAtts.layoutChoice = "Max"       
+        
+    def tileMdiWindows(self): 
+        fileAtts.layoutChoice = "Tile"
+        self.mdiLayout.tileSubWindows()
+            
+    def layoutChoose(self):
+        print("picking a layout!")
+        if fileAtts.layoutChoice == "Big":
+            self.bigCascade()
+        if fileAtts.layoutChoice == "Max":
+            self.maximizeMainWindow()
+        if fileAtts.layoutChoice == "Tile":
+            self.mdiLayout.tileSubWindows()
+        if fileAtts.layoutChoice == "Small":
+            self.mdiLayout.smallCascade()
+        
+    def resetTabs(self):
+        logging.info("printing writerTabs for reset")
+        logging.info(fileAtts.writerTabs)
+        logging.info(fileAtts.chapterList)
+        for i in fileAtts.writerTabs:
+            fileAtts.writerTabs[i].setParent(None)
+        fileAtts.writerTabs.clear()
+        if not bool(fileAtts.chapterList):
+            print("CL empty")
+        else:
+            print("CL has items")
             for i in fileAtts.chapterList:
+                print("chapter list counter!")
+                print(i)
+                print(fileAtts.chapterList)
                 fileAtts.writerTabs[i] = workTab(fileAtts.chapterNames[fileAtts.chapterList[i]])
                 tabRow = i - 1
-                self.workTabs.addWidget(fileAtts.writerTabs[i],tabRow,0)
+                self.workTabs.addWidget(fileAtts.writerTabs[i], tabRow, 0)
                 fileAtts.writerTabs[i].clicked.connect(partial(self.updateActiveWindow, fileAtts.chapterNames[fileAtts.chapterList[i]]))
-                
-                print("resetting")
-                
-                self.resetting.emit()
-                
+        self.resetting.emit()
+        self.scroll.setMinimumWidth(240)
+        
+    def UIClear(self):
+        print("clearing away!")
+        logging.info("about to fully clear")
+        fileAtts.openCorrelation.clear()  # just ensures that the keys in openWindows correlate to the correct keys in openWriters, and therefor, that the values are correct
+        fileAtts.chapterList.clear()
+        print("chapterList:", fileAtts.chapterList)  # holds the chapter paths in order of how the user has organised them, and is used to create the main OSM file's structure
+        fileAtts.chapterNames.clear()
+        for i in fileAtts.writerTabs:
+            fileAtts.writerTabs[i].setParent(None)
+        fileAtts.writerTabs.clear()
+        fileAtts.openWriters.clear()
+        for i in fileAtts.openWindows:
+            fileAtts.openWindows[i].close()
+        fileAtts.openWindows.clear()
+        
+          
+    def closeEvent(self, event):
+        if fileAtts.isEdited:
+            event.ignore()
+            self.savePopup("closeAttempt")
+
+    def checkWindowActive(self):
+        currentlyOpen = ""
+        logging.info(fileAtts.openWindows)
+        for i in fileAtts.openWindows:
+            logging.info(i)
+            if fileAtts.openWindows[i] == self.mdiLayout.activeSubWindow():
+                logging.info(fileAtts.openWindows[i])
+                logging.info(i)
+                currentlyOpen = i
+                break
+            currentlyOpen = i
+        return currentlyOpen
     
-        
-        def closeEvent(self, event):
-            if fileAtts.isEdited:
-                event.ignore()
-                self.savePopup("closeAttempt")
+    def checkWriterActive(self):
+        window = self.checkWindowActive()
+        winPath = list(fileAtts.chapterNames.keys())[list(fileAtts.chapterNames.values()).index(window)]
+        writerNum = list(fileAtts.openCorrelation.keys())[list(fileAtts.openCorrelation.values()).index(winPath)]
+        return writerNum
     
-        
-        def checkWindowActive(self):
-            currentlyOpen = 0
-            for currentlyOpen in fileAtts.openWindows:
-                if fileAtts.openWindows[currentlyOpen] == self.mdiLayout.activeSubWindow():
-                    print(fileAtts.openWindows[currentlyOpen])
-                    print(currentlyOpen)
-                    break
-            return currentlyOpen
-                
-        def goHereToSaveFirst(self, endResult):
-            if endResult == "saveThenLoad":
-                self.saveThenLoad()
-            if endResult == "newProject":
-                self.saveFile()
-                fileAtts.isNew = True
-                fileAtts.projectSet = False
-                while fileAtts.projectSet == False:
-                    print("here?")
-                    doStart()
-                self.mdiLayout.closeAllSubWindows()
-                self.newChapter()
-            elif endResult == "closeAttempt":
-                self.saveFile()
-                sys.exit()
-                    #return True 
-                
-        def goHereToContinue(self, endResult):
-            if endResult == "saveThenLoad":
-                self.openFile()
-            if endResult == "newProject":
-                fileAtts.isEdited = False #set here to tell newChapter not to prompt again
-                fileAtts.isNew = True
-                fileAtts.projectSet = False
-                while fileAtts.projectSet == False:
-                    self.doStart()
-                self.mdiLayout.show()
-                self.newChapter()
-            if endResult == "closeAttempt":
-                fileAtts.isEdited = False
-                sys.exit()
-                
-        def savePopup(self, source):
-            saveAsk = QDialog()
-            layout  = QGridLayout()
-            layout.setColumnStretch(1,3)
-            yesSave = QPushButton("Yes, save", saveAsk)
-            #yesSave.move(10,50)
-            noSave = QPushButton("No, do not save", saveAsk)
-            #noSave.move(210,50)
-            nevermindSave = QPushButton("Cancel", saveAsk)
-            #nevermindSave.move(110,50)
-            yesSave.clicked.connect(lambda: main.osmosisWriter.goHereToSaveFirst(self, source))
-            yesSave.clicked.connect(saveAsk.close)
-            noSave.clicked.connect(lambda: main.osmosisWriter.goHereToContinue(self, source))
-            noSave.clicked.connect(saveAsk.close)
-            nevermindSave.clicked.connect(saveAsk.close)
-            saveAsk.setWindowTitle("Save your work?")
-            saveAsk.setWindowModality(Qt.ApplicationModal)
-            
-            saveAsk.setLayout(layout)
-            layout.addWidget(yesSave,0,0)
-            layout.addWidget(noSave,0,1)
-            layout.addWidget(nevermindSave,0,2)
-            saveAsk.exec()
-            
-            def keyPressEvent(self, *args, **kwargs):
-                if fileAtts.isEdited == False: #prevents isEdited from being changed when already true
-                    fileAtts.isEdited = True
-                return QTextEdit.keyPressEvent(self, *args, **kwargs)
-        
-        def newProject(self):
-            print("new project")
-            self.savePopup("newProject")
-        
-        def newChapter(self):
-            fileAtts.windowCount = fileAtts.windowCount + 1
-            count = fileAtts.windowCount
-            print("gonna")
-            titleGiver() #get the chapter title
-            fileAtts.chapterList[count] = fileAtts.chapterPath[count] #chapters with corresponding urls by the order they were created, to be reordered by the user
-            fileAtts.chapterNames[fileAtts.chapterList[count]] = str(fileAtts.partName) ##chapterlist refers to the number of each chapter, while chapter name is the user given title
-            print(fileAtts.partName)
-            fileAtts.openCorrelation[count] = fileAtts.chapterList[count] #they start out the same but chapterList changes with user input
-            print(fileAtts.openCorrelation)
-            fileAtts.openWriters[count] = workspaceTemplate()
-            fileAtts.openWindows[fileAtts.partName] = QMdiSubWindow()
-            fileAtts.openWindows[fileAtts.partName].setWidget(fileAtts.openWriters[count])
-        
-            self.mdiLayout.addSubWindow(fileAtts.openWindows[fileAtts.partName])
-            
-            fileAtts.openWindows[fileAtts.partName].setWindowTitle(fileAtts.partDescription)
-            fileAtts.writerTabs[count] = workTab(str(fileAtts.partName))
-            
-            tabRow = count - 1
-            self.workTabs.addWidget(fileAtts.writerTabs[count], tabRow, 1)
-            
-            fileAtts.writerTabs[count].clicked.connect(partial(self.updateActiveWindow, fileAtts.chapterNames[fileAtts.openCorrelation[count]]))
-            fileAtts.writerTabs[count].rearranged.connect(self.resetTabs)
-            
-            #self.mdiLayout.cascadeSubWindows() #later on, set a toggle of if the user wants tile or cascades
-            fileAtts.openWindows[fileAtts.partName].show()
-            
-        def saveThenLoad(self): #The function called when clicking the saveButton
-            fileAtts.projectPath, _ = QFileDialog.getSaveFileName(self, "Save file", "", "OSM documents (*.osm)")
-            print(fileAtts.projectPath)
-            self.openFile()
-        
-        def saveFileAs(self): #The function called when clicking the saveButton
-            fileAtts.projectPath, _ = QFileDialog.getSaveFileName(self, "Save file", "", "OSM documents (*.osm)")
-            print(fileAtts.projectPath)
-            try:
-                with open(fileAtts.projectPath, 'w+') as f:
-                    f.write(self.workspace.toHtml())
+    def ctrlActions(self, source):
+        writer = self.checkWriterActive()
+        logging.info("ctrl Action pressed " + source)
+        if source == "undo":
+            logging.info("undo")
+            fileAtts.openWriters[writer].undo()
+        elif source == "redo":
+            logging.info("redo")
+            fileAtts.openWriters[writer].redo()
+        elif source == "cut":
+            fileAtts.openWriters[writer].cut()
+        elif source == "copy":
+            fileAtts.openWriters[writer].copy()
+        elif source == "paste":
+            fileAtts.openWriters[writer].paste()
     
-            except Exception as e:
-                print("oops, something went wrong")
-                self.dialog_critical(str(e))
-            fileAtts.isEdited = False
+    def fontSize(self, s):
+        writer = self.checkWriterActive()
+        fileAtts.openWriters[writer].setFontPointSize(s)
         
-        def saveFile(self): #The function called when clicking the saveButton
-            try:
-                count = 0
-                for i in fileAtts.openWriters: #writes down the chapters
-                    count = count + 1
-                    print(i, ",", count)
-                    #fileAtts.chapterPath = fileAtts.chapterFolder +  str(i) + ".osmc"
-                    print("checking correlation")
-                    #openCorrelation[count] should give you the path that correlates with that writer. To check:
-                    print(fileAtts.openCorrelation[count])
-                    with open(fileAtts.openCorrelation[count], 'w+') as f:
-                        print("ready to write from", i)
-                        f.write(fileAtts.openWriters[i].toHtml())
-            except Exception as e:
-                print("oops, something went wrong")
-                self.dialog_critical(str(e))
-                
-            with open(fileAtts.projectPath, 'w+') as f: #writing the chapter list in the main OSM file
-                for i in fileAtts.chapterList:
-                    if i == 1: #if this is the first of the for loop iterations
-                        self.projectString = fileAtts.chapterList[i]
-                    else:
-                        self.projectString = self.projectString + "<***ChapterBreak***>" + fileAtts.chapterList[i]
-                    print("proj", self.projectString)
-                print("ready to write", fileAtts.chapterList)
-                f.write(self.projectString)
-            fileAtts.isEdited = False
-            print(fileAtts.projectPath)
-            self.projectString = ""
-            x = 0
+    def fontFamily(self):
+        writer = self.checkWriterActive()
+        fileAtts.openWriters[writer].setCurrentFont(self.fonts.currentFont())
+        fileAtts.openWriters[writer].setFontPointSize(float(self.fontsize.currentText()))
     
+    def bold(self):
+        writer = self.checkWriterActive()
+        if self.bolded == False:
+            fileAtts.openWriters[writer].setFontWeight(QFont.Bold)
+            self.bolded = True
+        elif self.bolded == True: 
+            fileAtts.openWriters[writer].setFontWeight(QFont.Normal)
+            self.bolded = False
+            
+    def setItalic(self):
+        writer = self.checkWriterActive()
+        if self.italic == False:
+            fileAtts.openWriters[writer].setFontItalic(True)
+            self.italic = True
+        elif self.italic == True: 
+            fileAtts.openWriters[writer].setFontItalic(False)
+            self.italic = False
+        
+    def under(self):
+        writer = self.checkWriterActive()
+        if self.ul == False:
+            fileAtts.openWriters[writer].setFontUnderline(True)
+            self.ul = True
+        elif self.ul == True: 
+            fileAtts.openWriters[writer].setFontUnderline(False)
+            self.ul = False
     
-        def openFile(self): 
+    def newProject(self):
+        logging.info("new project")
+        self.savePopup("newProject")
+    
+    def newChapter(self):
+        for i in fileAtts.writerTabs:
+            fileAtts.writerTabs[i].setParent(None)
+        fileAtts.windowCount = fileAtts.windowCount + 1
+        count = fileAtts.windowCount
+        while fileAtts.chapterNameValid == False:
+            titleGiver()  # get the chapter title
+        fileAtts.chapterNameValid = False
+        fileAtts.chapterList[count] = fileAtts.chapterPath[count]  # chapters with corresponding urls by the order they were created, to be reordered by the user
+        fileAtts.chapterNames[fileAtts.chapterList[count]] = str(fileAtts.partName)  # chapterlist refers to the number of each chapter, while chapter name is the user given title
+        logging.info("in?")
+        fileAtts.openCorrelation[count] = fileAtts.chapterList[count]  # they start out the same but chapterList changes with user input
+        logging.info("about to get tricky")
+        
+        fileAtts.openWidgets[count] = QWidget()
+        fileAtts.openWindows[fileAtts.partName] = workArea()
+        fileAtts.openWriters[count] = workspaceTemplate()
+        fileAtts.openLayouts[count] = QVBoxLayout()
+        
+        logging.info("parts created")
+        
+        fileAtts.openWindows[fileAtts.partName].setWidget(fileAtts.openWidgets[count])
+        fileAtts.openWidgets[count].setLayout(fileAtts.openLayouts[count])
+        
+        logging.info("parts set")
+        
+        fileAtts.openLabels[count] = QLabel()
+        fileAtts.openLabels[count].setText(fileAtts.partName)
+        fileAtts.openLayouts[count].addWidget(fileAtts.openLabels[count])
+        
+        logging.info("parts named")
+        
+        fileAtts.openLayouts[count].addWidget(fileAtts.openWriters[count])
+
+        self.mdiLayout.addSubWindow(fileAtts.openWindows[fileAtts.partName])
+        
+        fileAtts.openLabels[count] = QLabel()
+        fileAtts.openLabels[count].setText(fileAtts.partDescription)
+        fileAtts.writerTabs[count] = workTab(str(fileAtts.partName))
+        
+        logging.info("parts initialized")
+        
+        tabRow = count
+        self.workTabs.addWidget(fileAtts.writerTabs[count], tabRow, 1)
+        
+        logging.info("tab made")
+        
+        fileAtts.writerTabs[count].clicked.connect(partial(self.updateActiveWindow, fileAtts.chapterNames[fileAtts.openCorrelation[count]]))
+        fileAtts.writerTabs[count].rearranged.connect(self.resetTabs)
+        
+        # self.mdiLayout.cascadeSubWindows() #later on, set a toggle of if the user wants tile or cascades
+        fileAtts.openWindows[fileAtts.partName].show()
+        
+        self.resetTabs()
+    
+    def saveFile(self):  # The function called when clicking the saveButton
+        print("Saving!")
+        logging.info("saving!")
+        logging.info(fileAtts.chapterList)
+        try:
+            for i in fileAtts.chapterList:  # writes down the chapters, once for each in the list
+                logging.info("writing chapter to file")
+                logging.info(fileAtts.openCorrelation)
+                logging.info("open Writers:")
+                logging.info(fileAtts.openWriters)
+                logging.info(fileAtts.chapterList[i])
+                chapterID = list(fileAtts.openCorrelation.keys())[list(fileAtts.openCorrelation.values()).index(fileAtts.chapterList[i])]
+                logging.info(chapterID)
+                # openCorrelation[count] should give you the path that correlates with that writer. To check
+                with open(fileAtts.chapterList[i], 'w+') as f:
+                    f.write(fileAtts.openWriters[chapterID].toHtml())
+        except Exception as e:
+            logging.info("oops, something went wrong") 
+            self.dialog_critical(str(e))
+        logging.info("about to save projectPath")
+        with open(fileAtts.projectPath, 'w+') as f:  # writing the chapter list in the main OSM file
+            for i in fileAtts.chapterList:
+                if i == 1:  # if this is the first of the for loop iterations
+                    self.projectString = fileAtts.chapterList[i]
+                else:
+                    self.projectString = self.projectString + "<***ChapterBreak***>" + fileAtts.chapterList[i]
+            f.write(self.projectString)
+        fileAtts.isEdited = False
+        logging.info("saved")
+        self.projectString = ""
+        x = 0
+        
+    def saveFileAs(self):  # The function called when clicking the saveButton
+        oldPath = fileAtts.projectPath
+        fileAtts.projectPath, _ = QFileDialog.getSaveFileName(self, "Save file as", "", "OSM documents (*.osm)")
+        logging.info(fileAtts.projectPath)
+        logging.info("^^^")
+        if oldPath == fileAtts.projectPath:  # if the path has not changed
+            logging.info("You seem to be saving as a project that already exists")
+            self.saveFile()
+        if fileAtts.projectPath == "":
+            logging.info("no path chosen. Cancelling save as")
+            fileAtts.projectPath = oldPath
+            return
+        currentPath = fileAtts.projectPath
+        projectPathList = currentPath.split("/")
+        projectFullName = projectPathList[-1]
+        try:
+            fileAtts.projectName = re.search('(.+?)\.osm', projectFullName).group(1)
+        except:
+            fileAtts.projectName = "untitled"
+            logging.info("no project name found.")
+        
+    def openFailed(self):
+        
+        errorNote = QMessageBox(self)
+        errorNote.setWindowTitle("Error")
+        errorNote.setText("Open failed due to blank .osm file")
+        errorNote.setStandardButtons(QMessageBox.Ok)
+        errorNote.exec()
+
+    def openFile(self):
+        fileAtts.isNew = False
+        currentPath = ""
+        try:
             fileAtts.projectPath, _ = QFileDialog.getOpenFileName(self, "Open file", "", "OSM documents (*.osm)")
             currentPath = fileAtts.projectPath
+            logging.info(currentPath)
+            if currentPath != "":  # If it's still blank
+                fileAtts.projectSet = True
+        except:
+            fileAtts.projectSet = False
+            logging.info("project not set because path is empty")
+            return False
+        if fileAtts.projectSet == True:
             projectPathList = currentPath.split("/")
             projectFullName = projectPathList[-1]
-            print(projectFullName)
+            self.mdiLayout.closeAllSubWindows()
+            self.UIClear()
+            logging.info("Did the UI Clear? Check writerTabs")
+            logging.info(fileAtts.writerTabs)
+            logging.info("Did the UI Clear? Check chapterList")
+            logging.info(fileAtts.chapterList)
             try:
-                projectName = re.search('(.+?)\.osm', projectFullName).group(1)
+                fileAtts.projectName = re.search('(.+?)\.osm', projectFullName).group(1)
             except:
-                projectName = "oops, no project name..."
-            #for i in self.openWriters:
-            #    print(i)
+                fileAtts.projectName = "untitled"
+                logging.info("no project name found.")
+            
+            logging.info("projectName set")
             try:
                 with open(fileAtts.projectPath, 'r') as f:
-                    
-                    fileAtts.isEdited = False #newly opened files have not been edited
+                    fileAtts.isEdited = False  # newly opened files have not been edited
                     fileAtts.isNew = False
-                    print("about to split")
-                    #fileAtts.openWriters[1] = workspaceTemplate()
+                    # fileAtts.openWriters[1] = workspaceTemplate()
                     chapterRaw = f.read()
-                    print(chapterRaw)
+                if chapterRaw == "":
+                    logging.debug("Your .osm file is blank. Ceasing to open.")
+                    fileAtts.projectSet = False
+                    return False
+                else:
                     chapterListMaker = list()
+                    chapterListMaker.clear()
                     chapterListMaker = chapterRaw.split("<***ChapterBreak***>")
-                    x = 0
-                    for i in chapterListMaker:
+                    fileAtts.projectSet = True
+                    
+            except:
+                logging.info("oops, it looks like your .osm file is blank.")
+                fileAtts.projectSet = False
+                return False
+                
+            # getting chapter folder:
+            for i in chapterListMaker:
+                chapterPathList = i.split("/")
+                del chapterPathList[-1]
+                fileAtts.chapterFolder = "/".join(chapterPathList) + "/"
+             
+            # adding on lost files
+            chapFiles = [f for f in listdir(fileAtts.chapterFolder) if isfile(join(fileAtts.chapterFolder, f))]
+            logging.info(chapFiles)
+            lostChapFiles = list()
+            for i in chapFiles:
+                match = False
+                for n in chapterListMaker:
+                    chapterNameList = n.split("/")
+                    chapterName = chapterNameList[-1]
+                    if i == chapterName:
+                        match = True
+                        break
+                if match == False:
+                    lostChapterName = fileAtts.chapterFolder + i
+                    logging.info(lostChapterName)
+                    lostChapFiles.append(lostChapterName)
+            logging.info("these chapters were lost:")
+            logging.info(lostChapFiles)
+            logging.info("adding these chapters at the end")
+            chapterListMaker += (lostChapFiles)
+            logging.info(chapterListMaker) 
+            # end additions
+                
+            try:
+                x = 0
+                for i in chapterListMaker:
+                    logging.info("making the chapter list. current entry:")
+                    logging.info(i)
+                    if os.path.exists(i):
                         x = x + 1
-                        fileAtts.chapterList[x] =  i
-                        print("printing i", i)
-                    print(fileAtts.chapterList)
-                    for i in chapterListMaker:
+                        fileAtts.chapterList[x] = i
+                for i in chapterListMaker:
+                    logging.info("making the windows")
+                    if os.path.exists(i):
                         fileAtts.windowCount = fileAtts.windowCount + 1
                         current = fileAtts.windowCount
                         fileAtts.chapterPath[current] = i
-                        print("the chapter path is", i)
                         chapterPathList = i.split("/")
                         chapterFullName = chapterPathList[-1]
-                        print(chapterFullName)
-                        print("Chapter folder")
-                        del chapterPathList[-1]
-                        fileAtts.chapterFolder = "/".join(chapterPathList) + "/"
-                        
-                        print(fileAtts.chapterFolder)
-                        
+                       
                         try:
-                            chapterName = re.search('(.+?)\.osm', chapterFullName).group(1)
+                            chapterName = re.search('(.+?)\.osmc', chapterFullName).group(1)
                         except:
                             chapterName = "unnamed"
-                        fileAtts.fileRequest.append(fileAtts.windowCount) #what is this for and can it leave
                         fileAtts.openCorrelation[fileAtts.windowCount] = i
-                        fileAtts.chapterNames[i] = chapterName #to get the correlated text with this later, ask for fileAtts.chapterNames[openCorrelation[fileAtts.windowCount]]
-                        #which along with fileAtts.openWriters[fileAtts.windowCount] will get you the correct chapter and text for the requisite window
+                        fileAtts.chapterNames[i] = chapterName  # to get the correlated text with this later, ask for fileAtts.chapterNames[openCorrelation[fileAtts.windowCount]]
+                        # which along with fileAtts.openWriters[fileAtts.windowCount] will get you the correct chapter and text for the requisite window
+                        try:
+                            with open(i) as f:
+                                contents = f.read()
+                        except:
+                            logging.info("looks like a chapter was deleted improperly")
                         
-                        #writerPath = str(currentPath) + str(current)
+                        fileAtts.openLayouts[current] = QVBoxLayout()
                         
-                        with open(i) as f:
-                            contents = f.read()
+                        fileAtts.openWidgets[current] = QWidget()
                         
                         fileAtts.openWriters[current] = workspaceTemplate()
                     
-                        fileAtts.openWindows[chapterName] = QMdiSubWindow()
+                        fileAtts.openWindows[chapterName] = workArea()
                         
-                        fileAtts.openWindows[chapterName].setWidget(fileAtts.openWriters[current])
-                        print("are we in")
+                        fileAtts.openWidgets[current].setLayout(fileAtts.openLayouts[current])
+                       
+                        fileAtts.openLabels[current] = QLabel()
+                        fileAtts.openLabels[current].setText(chapterName)
+                        fileAtts.openLayouts[current].addWidget(fileAtts.openLabels[current])
+                        
+                        fileAtts.openLayouts[current].addWidget(fileAtts.openWriters[current])
+                        
+                        fileAtts.openWindows[chapterName].setWidget(fileAtts.openWidgets[current])
+                    
                         self.mdiLayout.addSubWindow(fileAtts.openWindows[chapterName])
-                        self.mdiLayout.cascadeSubWindows() #later on, set a toggle of if the user wants tile or cascades
+                        self.mdiLayout.cascadeSubWindows()  # later on, set a toggle of if the user wants tile or cascades
                         fileAtts.openWindows[chapterName].show()
-                        
-                        fileAtts.openWindows[chapterName].setWindowTitle(chapterName)
                         
                         fileAtts.openWriters[current].setHtml(contents)
                         
-                        print("CURRENTLY", current)
-                        
                         fileAtts.writerTabs[current] = workTab(chapterName)
                         
-    
                         fileAtts.writerTabs[current].clicked.connect(partial(self.updateActiveWindow, fileAtts.chapterNames[fileAtts.openCorrelation[current]]))
-                        
                         
                         fileAtts.writerTabs[current].rearranged.connect(self.resetTabs)
                         tabRow = current - 1
                         self.workTabs.addWidget(fileAtts.writerTabs[current], tabRow, 1)
-                        
-            #tabName = fileAtts.writerTabs[currentCount]
-                        print("printing correlation")
-                        print(fileAtts.openWindows)
-                        print("writers")
-                        print(fileAtts.openWriters)
-                        print(fileAtts.writerTabs)
-                        
-                        print("Still", fileAtts.windowCount)
-                        #when a button of a certain count is pressed, grabs the count number of that button and sends to a method
-                        print("just set to", current)
-                        print(fileAtts.writerTabs)
-                        
+                        logging.info(fileAtts.writerTabs)
+                    else:
+                        logging.info("file not found. Removing from CLM")
+                        chapterListMaker.remove(i)
+                            
                 self.checkWindowActive()
+                self.updateWindowTitle()
+                self.layoutChoose()
+                logging.info("prereset")
+                logging.info(fileAtts.writerTabs)
+                self.resetTabs()
+                logging.info("post")
+                logging.info(fileAtts.writerTabs)
                     
             except Exception as e:
-                print("oops, something went wrong")
-                
-            self.updateWindowTitle()
+                logging.info("oops, it looks like your .osm file is improperly formatted.")
+            return True
+        
+    def openAttempt(self):
+        if not self.openFile():
+            print("open failed")
+            self.openFailed()
+            self.failedAsk.close()
+        
+    def deleteChapter(self):
+        chapterToDeleteWindow = self.checkWindowActive()
+        chapterOriginalPath = list(fileAtts.chapterNames.keys())[list(fileAtts.chapterNames.values()).index(chapterToDeleteWindow)]
+        logging.info("delete") 
+        delPath = fileAtts.chapterFolder + "deleted"
+        chapterDeletePath = delPath + "/" + fileAtts.chapterNames[chapterOriginalPath] + ".osmc"
+        logging.info(chapterDeletePath)
+        if not os.path.exists(delPath):
+            os.mkdir(delPath)
+        else:
+            logging.info("preparing to delete")
+        if not os.path.exists(chapterDeletePath):
+            shutil.move(chapterOriginalPath, chapterDeletePath)
+        else:
+            logging.info("chapter already deleted")
+            os.remove(chapterOriginalPath)
+        logging.info("moved")
+        
+        totalTabs = len(fileAtts.chapterList)
+        logging.info("there are x tabs: ")
+        logging.info(totalTabs)  # find the position of the last tab in the sequence
+        
+        switcher = dict()
+        x = 0
+        y = 0
+        z = 0
+        sourceSlot = 0  # the slot the tab came from
+        
+        for i in fileAtts.chapterList:
+            z = z + 1
+            logging.info(z)
+            logging.info(fileAtts.chapterList)
+            logging.info(chapterOriginalPath)
+            if fileAtts.chapterList[z] == chapterOriginalPath:
+                    sourceSlot = z
+                    
+        if sourceSlot == totalTabs:  # in this case, if it's last on the list
+            # do nothing
+            logging.info("final chapter tab removed, no reordering")
+                  
+        elif sourceSlot < totalTabs:
+            logging.info("in")
+            for i in fileAtts.chapterList:
+                x = x + 1  # determines where is slotted
+                y = y + 1  # determines what is slotted
+                if x == totalTabs:  # you're placing ABOVE the drop num
+                    logging.info("final slot")
+                    switcher[totalTabs] = fileAtts.chapterList[sourceSlot]
+                    logging.info("switched to back")
+                    y = y - 1  # realign x and y
+                elif x == sourceSlot:
+                    logging.info("at source")
+                    y = y + 1
+                    switcher[x] = fileAtts.chapterList[y]
+                else:
+                    logging.info("before")
+                    switcher[x] = fileAtts.chapterList[y]
+        # #just move everything up after the source slot       
+        q = 0
+        for i in switcher:
+            q = q + 1
+            fileAtts.chapterList[q] = switcher[q]
+        numLeft = len(fileAtts.chapterList)
+        if numLeft > 1:
+            del fileAtts.chapterList[numLeft]
+            fileAtts.openWindows[chapterToDeleteWindow].close()
+            fileAtts.openWindows.pop(chapterToDeleteWindow, None)
+            fileAtts.windowCount = fileAtts.windowCount - 1
+        else:
+            logging.info("you can't remove the last tab from your project!")
+        logging.info("about to rearrange")
+        self.resetTabs()
+        logging.info(fileAtts.chapterList)
             
-        def exportFile(self):
-            print("preparing to export")
+    def exportFile(self):
+        if fileAtts.projectSet == True:
+            logging.info("preparing to export")
             self.saveFile()
             chapterNamesForExport = list()
             try:
                 with open(fileAtts.projectPath, 'r') as f:
                     chapterRaw = f.read()
-                print(chapterRaw)
                 chapterListMaker = list()
                 chapterListMaker = chapterRaw.split("<***ChapterBreak***>")
                 x = 0
                 y = 0
                 z = 0 
+                
                 for i in chapterListMaker:
                     x = x + 1
-                    fileAtts.chapterList[x] =  i
-                    print("printing i", i)
+                    fileAtts.chapterList[x] = i
                 for i in chapterListMaker:
-                    z = z + 1 #tabbing through windows
-                    print(z)
+                    z = z + 1  # tabbing through windows
                     writingFrom = fileAtts.chapterList[z]
-                    print("we are writing from", writingFrom)
                     writingFromList = writingFrom.split("/")
                     chapterFullName = writingFromList[-1]
-                    print(chapterFullName)
                     try:
                         chapterName = re.search('(.+?)\.osm', chapterFullName).group(1)
                     except:
@@ -803,86 +1171,189 @@ def main():
                     
                     chapterTitleHTML = "<p><h2>" + chapterName + "</h2><p>"
                     chapterNamesForExport.append(chapterTitleHTML)
-                    print(chapterNamesForExport)
-                
+                    
                 exportPath, _ = QFileDialog.getSaveFileName(self, "Save file", "", "")
+                htmlPath = exportPath + ".html"
                 docPath = Path(exportPath + ".doc")
-                print("exporting to", exportPath)
-                with open(exportPath, 'a+') as f:
+                with open(htmlPath, 'a+') as f:
                     for i in chapterListMaker:
-                        print("printing chapter #", i)
                         f.write(chapterNamesForExport[y])
+                        logging.info("name written")
                         y = y + 1
-                        print("name printed")
-                        writingFrom = fileAtts.chapterList[y]
-                        print("we are writing from", writingFrom)
-                        writingFromList = writingFrom.split("/")
-                        chapterFullName = writingFromList[-1]
-                        print(chapterFullName)
-                        try:
-                            chapterName = re.search('(.+?)\.osm', chapterFullName).group(1)
-                        except:
-                            chapterName = "unnamed"
                         chapterID = list(fileAtts.openCorrelation.keys())[list(fileAtts.openCorrelation.values()).index(fileAtts.chapterList[y])]
-                        #chapterID = list(fileAtts.chapterPath.keys())[list(fileAtts.chapterPath.values()).index(localeOfSource)]
-                        print(chapterID)
-                        print(fileAtts.openCorrelation)
-                        print(fileAtts.openWindows)
-                        print(fileAtts.openWriters)
+                        # chapterID = list(fileAtts.chapterPath.keys())[list(fileAtts.chapterPath.values()).index(localeOfSource)]
+                        logging.info("about to write contents")
                         f.write(fileAtts.openWriters[chapterID].toHtml())
-                
+                        
                 docParser = HtmlToDocx()
-                docParser.parse_html_file(exportPath, docPath)
-                print(docPath)
-                
-                       
-                print("exported")
+                docParser.parse_html_file(htmlPath, docPath)
+                logging.info(docPath)
+                logging.info("exported")
             except:
-                print("oops, couldn't export")
+                logging.info("oops, couldn't export")
             
             if os.path.exists(str(exportPath)):
-                print("removal")
                 os.remove(str(exportPath))
-        def saveCheck(self): #asks if you want to save. Differs from loadCheck in that this one is a user choice prompt, but loadCheck checks if changes have been made
-            #def saveAndLoad():
-            self.savePopup()
-            
-        def loadCheck(self): #check if saving is necessary when asked to load a new file, and if not, load new file
-            if fileAtts.isEdited == True:  #if you've started writing (made keystrokes), eg have work to save
-                self.savePopup("saveThenLoad")
-                
-                '''
-                if self.savePopup.cancelPopup == False and self.savePopup.buttonPressed == True:
-                    self.openFile()
-                '''
-            elif fileAtts.isEdited == False:
-                self.openFile()
+        else:
+            logging.info("no project to export found")
+
+    def goHereToContinue(self, endResult):
+        if endResult == "closeAttempt":
+            self.saveFile()
+            sys.exit()
+        elif endResult == "open":
+            logging.info("asked to save first, going to open now.")
+            self.openAttempt()
+            self.saveAsk.close()
+        elif endResult == "newProject":  # if new file
+            logging.info("getting ready for the new project")
+            fileAtts.isNew = True
+            fileAtts.projectSet = False
+            self.saveAsk.close()
+            newProjectAtStart()
+            if fileAtts.projectSet == True:
+                self.UIClear()
+                logging.info("we are going to check if writer tabs is empty:")
+                logging.info(fileAtts.writerTabs)
+                fileAtts.windowCount = 0
+                logging.info("window clear done")
+                logging.info(fileAtts.chapterPath)
+                fileAtts.chapterPath.clear()
+                logging.info("cleared, resetting tabs. Chapterlist below")
+                print("chapterList at newProject:", fileAtts.chapterList)
+                self.resetTabs()
+            else:
+                fileAtts.projectSet == True  # reset the projectSet
+            self.saveAsk.close()
+        else:
+            self.startMenu()
+            self.saveAsk.close()
         
-        def updateWindowTitle(self): 
-            projectPathList = fileAtts.projectPath.split("/")
-            projectFullName = projectPathList[-1]
-            try:
-                projectName = re.search('(.+?)\.osm', projectFullName).group(1)
-            except:
-                projectName = "untitled"
-            self.setWindowTitle("Osmosis Writer - " + projectName)
+    def goHereToSaveFirst(self, endResult):
+        logging.info("saving first")
+        self.saveFile()
+        self.goHereToContinue(endResult)
             
-        def updateActiveWindow(self, windowName):
-            #set the active window to the one correlated with the button pressed
-            print(type(windowName))
-            print("pressed", str(windowName))
-            print(windowName)
-            self.mdiLayout.setActiveSubWindow(fileAtts.openWindows[windowName])
-                    
-            
+    def savePopup(self, sourceDia):
+        saveAsk = QDialog()
+        logging.info("savePopup popped with this source:")
+        logging.info(sourceDia)
+        layout = QGridLayout()
+        layout.setColumnStretch(1, 3)
+        yesSave = QPushButton("Yes, save")
+        noSave = QPushButton("No, do not save")
+        nevermindSave = QPushButton("Cancel Action") 
+
+        yesSave.clicked.connect(lambda: self.goHereToSaveFirst(sourceDia))
+        noSave.clicked.connect(lambda: self.goHereToContinue(sourceDia))
+        yesSave.clicked.connect(saveAsk.close)
+        noSave.clicked.connect(saveAsk.close)
+        nevermindSave.clicked.connect(saveAsk.close)
+        saveAsk.setWindowTitle("Save your work?")
+        saveAsk.setWindowModality(Qt.ApplicationModal)
+        
+        saveAsk.setLayout(layout)
+        layout.addWidget(yesSave, 0, 0)
+        layout.addWidget(noSave, 0, 1)
+        layout.addWidget(nevermindSave, 0, 2)
+        saveAsk.exec()
+        
+    def saveThenLoad(self):  # The function called when clicking the saveButton
+        self.saveFile()
+        self.goHereToContinue("openProject")
+        self.openAttempt()
+    
+    def updateWindowTitle(self): 
+        projectPathList = fileAtts.projectPath.split("/")
+        projectFullName = projectPathList[-1]
+        try:
+            projectName = re.search('(.+?)\.osm', projectFullName).group(1)
+        except:
+            projectName = "untitled"
+        self.setWindowTitle("Osmosis Writer - " + projectName)
+        
+    def updateActiveWindow(self, windowName):
+        # set the active window to the one correlated with the button pressed
+        logging.info(windowName)
+        self.mdiLayout.setActiveSubWindow(fileAtts.openWindows[windowName])
+ 
+
+app = QApplication(sys.argv)
+app.setApplicationName("Osmosis Writer")
+window = osmosisWriter()
+window.show()
+QFontDatabase.addApplicationFont("OpenDyslexic-Bold")
+QFontDatabase.addApplicationFont("OpenDyslexic-BoldItalic")
+QFontDatabase.addApplicationFont("OpenDyslexic-Italic")
+QFontDatabase.addApplicationFont("OpenDyslexic-Regular")       
+
                 
-      
-    app = QApplication(sys.argv)
-    app.setApplicationName("Osmosis Writer")
-            
-    window = osmosisWriter()
-    window.show()
+class styleSet(QDialog):
+
+    def __init__(self, *args, **kwargs):
+        super(styleSet, self).__init__(*args, **kwargs)
+        layout = QVBoxLayout()
+        self.setGeometry(QRect(200, 200, 400, 200))
+        self.setLayout(layout)
+        self.isModal()
+        
+        availableStyles = list()
+        
+        with open("OWthemes.txt", 'r') as f:
+            availableStylesRaw = f.read()
+            logging.info(availableStylesRaw)
+        
+        availableStyles = availableStylesRaw.split()
+        
+        logging.info(availableStyles)
+        
+        stylePicker = QComboBox(self)
+        
+        x = 0
+        for i in availableStyles:
+            stylePicker.addItem(i, 0)
+            x = x + 1
+        
+        button = QPushButton("confirm theme selection")
+        cancel = QPushButton("cancel")
+        layout.addWidget(stylePicker)
+        layout.addWidget(button)
+        layout.addWidget(cancel)
+
+        def choose(self):
+            logging.info("got here")
+            chosen = stylePicker.currentText()
+            logging.info("and here")
+            logging.info(chosen)
+            try:
+                with open(chosen, "r") as f:
+                    styleChoice = f.read()
+                    logging.info("style set")
+            except:
+                styleChoice = ""
+            fileAtts.themeChoice = styleChoice
+            app.style().unpolish(app)
+            logging.info("unpolished")
+            app.setStyleSheet(fileAtts.themeChoice)
+            app.style().polish(app)
+
+        button.clicked.connect(choose)
+        button.clicked.connect(self.accept)
+        cancel.clicked.connect(self.accept)
+        self.exec()
+        cancel.deleteLater()
+        button.deleteLater()
+
+
+def main(): 
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+    logging.basicConfig(filename=logLocation, filemode='w+', level=logging.DEBUG) 
+    styleSet()
+    logging.info("style set, back in main")
     app.exec_() 
-if __name__ == '__main__':       
+
+       
+if __name__ == '__main__': 
     main()
     
