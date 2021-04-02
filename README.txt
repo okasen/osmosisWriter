@@ -5,6 +5,14 @@ It is licensed under the GNU GPL3 and created by Jennifer Black, AKA @JenniLBlac
 
 Software is presented As-Is and offers no warranty.
 
+By using this software, you agree:
+-not to yell at me on Twitter if it eats your entire novel (come on, it's an Alpha! And please back your stuff up in ANY program!);
+-to share your bugs and issues (including would-be-nice feature feedback) with me as you are comfortable;
+-that trans women are women
+-that black lives matter
+-to get your damn covid vaccine and wear your mask up until this becomes an appropriately dated and historic artifact of a bad timeline;
+-not to redistribute this software for financial gain unless you are a future version of myself.
+
 Currently, it contains the following features:
 -create a new project (from start screen): Prompts for a project name and creates a folder with that name in your chosen directory. Also creates a .OSM file in that folder.
 --you are then prompted to create your first chapter, which requires inputting a chapter name.
