@@ -24,8 +24,9 @@ from pathlib import Path
 import logging
     
 home = expanduser("~")
-logLocation = home + "\osmosisLog.log"
+logLocation = os.path.join(home, "osmosisLog.log")
 print(logLocation)
+assets = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
     
 class fileAttributes:
     def __init__(self):
@@ -1170,7 +1171,7 @@ class styleSet(QDialog):
         
         availableStyles = list()
         
-        with open("OWthemes.txt", 'r') as f:
+        with open(os.path.join(assets,"OWthemes.txt"), 'r') as f:
             availableStylesRaw = f.read()
             logging.info(availableStylesRaw)
         
