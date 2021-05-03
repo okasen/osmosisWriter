@@ -1300,7 +1300,7 @@ class styleSet(QDialog):
         
         availableStyles = list()
         
-        with open("OWthemes.txt", 'r') as f:
+        with open("./assets/OWthemes.txt", 'r') as f:
             availableStylesRaw = f.read()
             logging.info(availableStylesRaw)
         
