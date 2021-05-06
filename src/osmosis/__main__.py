@@ -8,9 +8,9 @@ Martin Fitzpatrick (Megasolid Idiom rich text word processor)
 @author: Jennifer Black
 '''
 from PyQt5 import QtGui, QtCore, Qt
-from PyQt5.QtGui import *
+from PyQt5.QtGui import *  # seems redundant
 from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
+from PyQt5.QtCore import * # seems redundatn
 import os
 from os import listdir
 from os.path import isfile, join, expanduser
@@ -22,15 +22,16 @@ from bs4 import *
 from pathlib import Path
 import logging
 
-import style
-import fileAttributes
-import guiComponents
+import osmosis.style as style
+import osmosis.fileAttributes as fileAttributes
+import osmosis.guiComponents as guiComponents
 
 home = expanduser("~")
 logLocation = os.path.join(home, "osmosisLog.log")
 print(logLocation)
 assets = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 
+# having fileAtts instead of a Project-Class semms a bit odd
 fileAtts = fileAttributes.fileAttributes()
 
 def styleChange():
@@ -59,13 +60,18 @@ class newProjectAtStart(QDialog):
         button.setEnabled(False)
         cancel = QPushButton("cancel")
 
+        # if this would return projectTitle it could be passed to a class creating
+        # projects
         def getTitle():
             fileAtts.projectTitle = projectNamer.text()
             cleanName = re.sub('[^A-Za-z0-9 ]+', '', fileAtts.projectTitle)
             fileAtts.projectTitle = cleanName
+
         def buttonToggle():
             button.setEnabled(True)
 
+        # This is business logic, could be refactored into a ProjectFactory,
+        # this way it would be easier to make changes to the ui
         def makeNew():
             logging.info("making a new project")
             dialog = QFileDialog(self)
@@ -576,6 +582,8 @@ class osmosisWriter(QMainWindow):
 
         self.resetTabs()
 
+    # business logic, a UI-Class might call a function like this,
+    # but it should be defined elsewhere
     def saveFile(self): #The function called when clicking the saveButton
         print("Saving!")
         logging.info("saving!")
@@ -590,6 +598,8 @@ class osmosisWriter(QMainWindow):
         except Exception as e:
             logging.info("oops, something went wrong")
             self.dialog_critical(str(e))
+        # This sounds like something we could use multiple times, so it should be in its
+        # own method
         with open(fileAtts.projectPath, 'w+') as f: #writing the chapter list in the main OSM file
             for i in fileAtts.chapterList:
                 if i == 1: #if this is the first of the for loop iterations
@@ -612,7 +622,7 @@ class osmosisWriter(QMainWindow):
         if fileAtts.projectPath == "":
             logging.info("no path chosen. Cancelling save as")
             fileAtts.projectPath = oldPath
-            return
+            return #return without a return statement should never be needed
 
     def openFile(self):
         fileAtts.isNew = False
@@ -621,9 +631,9 @@ class osmosisWriter(QMainWindow):
             fileAtts.projectPath, _ = QFileDialog.getOpenFileName(self, "Open file", "", "OSM documents (*.osm)")
             currentPath = fileAtts.projectPath
             logging.info(currentPath)
-            if currentPath != "": #If it's still blank
+            if currentPath != "": #If it's still blank Dave: this is currentPath == None
                 fileAtts.projectSet = True
-        except:
+        except: # broad excepts are evil, catch the error you are actually expecting
             fileAtts.projectSet = False
             logging.info("project not set because path is empty")
             return
@@ -662,11 +672,13 @@ class osmosisWriter(QMainWindow):
 
             #getting chapter folder:
             for i in chapterListMaker:
+                #os.path.split(path) does this already
                 chapterPathList = i.split("/")
                 del chapterPathList[-1]
                 fileAtts.chapterFolder = "/".join(chapterPathList) + "/"
 
-            #adding on lost files
+            # adding on lost files #putting this in its own function would increase
+            # readability and should be easier to test
             chapFiles = [f for f in listdir(fileAtts.chapterFolder) if isfile(join(fileAtts.chapterFolder, f))]
             logging.info(chapFiles)
             lostChapFiles = list()
@@ -744,7 +756,11 @@ class osmosisWriter(QMainWindow):
 
                         fileAtts.writerTabs[current] = guiComponents.workTab(chapterName)
 
-                        fileAtts.writerTabs[current].clicked.connect(partial(self.updateActiveWindow, fileAtts.chapterNames[fileAtts.openCorrelation[current]]))
+                        fileAtts.writerTabs[current].clicked.connect(
+                            partial(self.updateActiveWindow,
+                                    fileAtts.chapterNames[fileAtts.openCorrelation[current]]
+                                    )
+                        )
 
                         fileAtts.writerTabs[current].rearranged.connect(self.resetTabs)
                         tabRow = current - 1
@@ -761,7 +777,7 @@ class osmosisWriter(QMainWindow):
             except Exception as e:
                 logging.info("oops, it looks like your .osm file is improperly formatted.")
 
-    def deleteChapter(self):
+    def deleteChapter(self): # this function mixes business logic and gui logic.
         chapterToDeleteWindow = self.checkWindowActive()
         chapterOriginalPath = list(fileAtts.chapterNames.keys())[list(fileAtts.chapterNames.values()).index(chapterToDeleteWindow)]
         logging.info("delete")
@@ -876,7 +892,9 @@ class osmosisWriter(QMainWindow):
                         f.write(chapterNamesForExport[y])
                         logging.info("name written")
                         y = y + 1
-                        chapterID = list(fileAtts.openCorrelation.keys())[list(fileAtts.openCorrelation.values()).index(fileAtts.chapterList[y])]
+                        chapterID = list(fileAtts.openCorrelation.keys())[
+                            list(fileAtts.openCorrelation.values()).index(fileAtts.chapterList[y])
+                        ]
                         #chapterID = list(fileAtts.chapterPath.keys())[list(fileAtts.chapterPath.values()).index(localeOfSource)]
                         logging.info("about to write contents")
                         f.write(fileAtts.openWriters[chapterID].toHtml())

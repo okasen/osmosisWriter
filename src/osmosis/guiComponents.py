@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 import logging
 
-import fileAttributes
+import osmosis.fileAttributes as fileAttributes
 
 fileAtts = fileAttributes.fileAttributes()
 
