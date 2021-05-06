@@ -416,6 +416,8 @@ class osmosisWriter(QMainWindow):
         style.styleSet()
 
     def bigCascade(self):
+        #x and y here represent x and y coordinates.
+        #might need renaming to not need this comment!
         y = 0
         x = 0
         xOffset = 0
@@ -584,6 +586,7 @@ class osmosisWriter(QMainWindow):
 
     # business logic, a UI-Class might call a function like this,
     # but it should be defined elsewhere
+    # TODO
     def saveFile(self): #The function called when clicking the saveButton
         print("Saving!")
         logging.info("saving!")
@@ -678,7 +681,7 @@ class osmosisWriter(QMainWindow):
                 fileAtts.chapterFolder = "/".join(chapterPathList) + "/"
 
             # adding on lost files #putting this in its own function would increase
-            # readability and should be easier to test
+            # readability and should be easier to test TODO
             chapFiles = [f for f in listdir(fileAtts.chapterFolder) if isfile(join(fileAtts.chapterFolder, f))]
             logging.info(chapFiles)
             lostChapFiles = list()
@@ -724,6 +727,7 @@ class osmosisWriter(QMainWindow):
                         fileAtts.openCorrelation[fileAtts.windowCount] = i
                         fileAtts.chapterNames[i] = chapterName #to get the correlated text with this later, ask for fileAtts.chapterNames[openCorrelation[fileAtts.windowCount]]
                         #which along with fileAtts.openWriters[fileAtts.windowCount] will get you the correct chapter and text for the requisite window
+                        #TODO make this not require copy/paste or superhuman memory
                         try:
                             with open(i) as f:
                                 contents = f.read()
@@ -777,14 +781,15 @@ class osmosisWriter(QMainWindow):
             except Exception as e:
                 logging.info("oops, it looks like your .osm file is improperly formatted.")
 
-    def deleteChapter(self): # this function mixes business logic and gui logic.
-        chapterToDeleteWindow = self.checkWindowActive()
-        chapterOriginalPath = list(fileAtts.chapterNames.keys())[list(fileAtts.chapterNames.values()).index(chapterToDeleteWindow)]
-        logging.info("delete")
-        delPath = fileAtts.chapterFolder + "deleted"
-        chapterDeletePath = delPath + "/" + fileAtts.chapterNames[chapterOriginalPath] + ".osmc"
-        logging.info(chapterDeletePath)
-        if not os.path.exists(delPath):
+    def deleteChapter(self): # this function mixes business logic and gui logic. TODO fix that
+        #below: annotating what is business and what is GUI logic
+        chapterToDeleteWindow = self.checkWindowActive() #BIZ
+        chapterOriginalPath = list(fileAtts.chapterNames.keys())[list(fileAtts.chapterNames.values()).index(chapterToDeleteWindow)] #BIZ
+        logging.info("delete") #BIZ
+        delPath = fileAtts.chapterFolder + "deleted" #BIZ
+        chapterDeletePath = delPath + "/" + fileAtts.chapterNames[chapterOriginalPath] + ".osmc" #BIZ
+        logging.info(chapterDeletePath) #BIZ
+        if not os.path.exists(delPath): #BIZ vvv
             os.mkdir(delPath)
         else:
             logging.info("preparing to delete")
@@ -793,22 +798,23 @@ class osmosisWriter(QMainWindow):
         else:
             logging.info("chapter already deleted")
             os.remove(chapterOriginalPath)
-        logging.info("moved")
+        logging.info("moved") #BIZ ^^^
 
+        #TODO: Above this line and below this line are Business and GUI logic respectively
+        #Move them to separate functions
 
-        totalTabs = len(fileAtts.chapterList)
+        totalTabs = len(fileAtts.chapterList) #GUI?
         logging.info("there are x tabs: ")
         logging.info(totalTabs) #find the position of the last tab in the sequence
 
-        switcher = dict()
+        switcher = dict() #GUI
         x = 0
         y = 0
         z = 0
         sourceSlot = 0 #the slot the tab came from
 
-        for i in fileAtts.chapterList:
+        for i in fileAtts.chapterList: #GUI, probably needs the single letter names cleaned
             z = z + 1
-            logging.info(z)
             logging.info(fileAtts.chapterList)
             logging.info(chapterOriginalPath)
             if fileAtts.chapterList[z] == chapterOriginalPath:
@@ -817,13 +823,13 @@ class osmosisWriter(QMainWindow):
 
         if sourceSlot == totalTabs: #in this case, if it's last on the list
             #do nothing
-            logging.info("final chapter tab removed, no reordering")
+            logging.info("final chapter tab removed, no reordering") #GUI!
 
         elif sourceSlot < totalTabs:
             logging.info("in")
             for i in fileAtts.chapterList:
-                x = x + 1 #determines where is slotted
-                y = y + 1 #determines what is slotted
+                x = x + 1 #determines where is slotted, please rename this oh wow
+                y = y + 1 #determines what is slotted, same, needs a better name
                 if x == totalTabs: #you're placing ABOVE the drop num
                     logging.info("final slot")
                     switcher[totalTabs] = fileAtts.chapterList[sourceSlot]
@@ -836,7 +842,7 @@ class osmosisWriter(QMainWindow):
                 else:
                     logging.info("before")
                     switcher[x] = fileAtts.chapterList[y]
-        ##just move everything up after the source slot
+        #just move everything up after the source slot
         q = 0
         for i in switcher:
             q = q + 1
@@ -850,7 +856,7 @@ class osmosisWriter(QMainWindow):
         else:
             logging.info("you can't remove the last tab from your project!")
         logging.info("about to rearrange")
-        self.resetTabs()
+        self.resetTabs() #majorly GUI
         logging.info(fileAtts.chapterList)
 
     def exportFile(self):
@@ -895,7 +901,6 @@ class osmosisWriter(QMainWindow):
                         chapterID = list(fileAtts.openCorrelation.keys())[
                             list(fileAtts.openCorrelation.values()).index(fileAtts.chapterList[y])
                         ]
-                        #chapterID = list(fileAtts.chapterPath.keys())[list(fileAtts.chapterPath.values()).index(localeOfSource)]
                         logging.info("about to write contents")
                         f.write(fileAtts.openWriters[chapterID].toHtml())
 
@@ -911,7 +916,7 @@ class osmosisWriter(QMainWindow):
         else:
             logging.info("no project to export found")
 
-    def goHereToContinue(self, endResult):
+    def goHereToContinue(self, endResult): #TODO: Review this function. It feels like it's doing more than one job
         if endResult == "closeAttempt":
             self.saveFile()
             sys.exit()
@@ -953,7 +958,8 @@ class osmosisWriter(QMainWindow):
         self.goHereToContinue(endResult)
         self.saveAsk.close()
 
-    def savePopup(self, sourceDia):
+    def savePopup(self, sourceDia): #TODO: consider if this should be in guiComponenets?
+        #What changes would this need?
         layout  = QGridLayout()
         layout.setColumnStretch(1,3)
         yesSave = QPushButton("Yes, save", self.saveAsk)

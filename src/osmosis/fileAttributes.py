@@ -5,7 +5,7 @@ from os.path import isfile, join, expanduser
 
 class fileAttributes:
     def __init__(self):
-
+        #TODO: review these vars and ensure they're all still needed
         self.isNew = True #defines if we're loading a file or starting new
         self.isEdited = False #no file is edited before it is started!
         self.projectPath = ""
