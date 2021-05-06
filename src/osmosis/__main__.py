@@ -22,9 +22,9 @@ from bs4 import *
 from pathlib import Path
 import logging
 
-import style
-import fileAttributes
-import guiComponents
+import osmosis.style as style
+import osmosis.fileAttributes as fileAttributes
+import osmosis.guiComponents as guiComponents
 
 home = expanduser("~")
 logLocation = os.path.join(home, "osmosisLog.log")
