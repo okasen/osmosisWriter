@@ -31,7 +31,7 @@ logLocation = os.path.join(home, "osmosisLog.log")
 print(logLocation)
 assets = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 
-# having fileAtts instead of a Project-Class semms a bit odd
+# having fileAtts instead of a Project-Class semms a bit odd TODO consider how to change this
 fileAtts = fileAttributes.fileAttributes()
 
 def styleChange():
@@ -781,15 +781,14 @@ class osmosisWriter(QMainWindow):
             except Exception as e:
                 logging.info("oops, it looks like your .osm file is improperly formatted.")
 
-    def deleteChapter(self): # this function mixes business logic and gui logic. TODO fix that
-        #below: annotating what is business and what is GUI logic
-        chapterToDeleteWindow = self.checkWindowActive() #BIZ
-        chapterOriginalPath = list(fileAtts.chapterNames.keys())[list(fileAtts.chapterNames.values()).index(chapterToDeleteWindow)] #BIZ
-        logging.info("delete") #BIZ
-        delPath = fileAtts.chapterFolder + "deleted" #BIZ
+    def deleteChapter(self): # this function mixes business logic and gui logic.
+        chapterToDeleteWindow = self.checkWindowActive()
+        chapterOriginalPath = list(fileAtts.chapterNames.keys())[list(fileAtts.chapterNames.values()).index(chapterToDeleteWindow)]
+        logging.info("delete")
+        delPath = fileAtts.chapterFolder + "deleted"
         chapterDeletePath = delPath + "/" + fileAtts.chapterNames[chapterOriginalPath] + ".osmc" #BIZ
-        logging.info(chapterDeletePath) #BIZ
-        if not os.path.exists(delPath): #BIZ vvv
+        logging.info(chapterDeletePath)
+        if not os.path.exists(delPath):
             os.mkdir(delPath)
         else:
             logging.info("preparing to delete")
@@ -798,22 +797,22 @@ class osmosisWriter(QMainWindow):
         else:
             logging.info("chapter already deleted")
             os.remove(chapterOriginalPath)
-        logging.info("moved") #BIZ ^^^
+        logging.info("moved")
 
         #TODO: Above this line and below this line are Business and GUI logic respectively
         #Move them to separate functions
 
-        totalTabs = len(fileAtts.chapterList) #GUI?
+        totalTabs = len(fileAtts.chapterList)
         logging.info("there are x tabs: ")
         logging.info(totalTabs) #find the position of the last tab in the sequence
 
-        switcher = dict() #GUI
+        switcher = dict()
         x = 0
         y = 0
         z = 0
         sourceSlot = 0 #the slot the tab came from
 
-        for i in fileAtts.chapterList: #GUI, probably needs the single letter names cleaned
+        for i in fileAtts.chapterList: #probably needs the single letter names cleaned
             z = z + 1
             logging.info(fileAtts.chapterList)
             logging.info(chapterOriginalPath)
