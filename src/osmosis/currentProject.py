@@ -1,9 +1,8 @@
-
 import os
 from os import listdir
 from os.path import isfile, join, expanduser
 
-class fileAttributes:
+class Project:
     def __init__(self):
         #TODO: review these vars and ensure they're all still needed
         self.isNew = True #defines if we're loading a file or starting new

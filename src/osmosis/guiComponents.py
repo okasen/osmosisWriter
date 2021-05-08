@@ -30,6 +30,13 @@ class workArea(QMdiSubWindow):
     def mouseReleaseEvent(self, event):
         self.pressed = False
 
+class workspaceTemplate(QTextEdit):
+    def __init__(self, *args, **kwargs):
+        super(workspaceTemplate, self).__init__(*args, **kwargs)
+        #self.workspace.selectionChanged.connect(self.update_format) #Getting the QTextEdit basics in
+
+        self.setFontPointSize(14)
+        self.setPlaceholderText("Blank pages are intimidating, so we put these words here.")
 
 
 class workTab(QPushButton):
