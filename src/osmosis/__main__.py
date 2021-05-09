@@ -24,6 +24,7 @@ import logging
 
 import osmosis.style as style
 import osmosis.currentProject as currentProject
+from osmosis.currentProject import *
 import osmosis.guiComponents as guiComponents
 
 home = expanduser("~")
@@ -31,81 +32,15 @@ logLocation = os.path.join(home, "osmosisLog.log")
 print(logLocation)
 assets = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 
-# having currentProject instead of a Project-Class semms a bit odd TODO consider how to change this
-currentProject = currentProject.Project()
+# having fileAtts instead of a Project-Class semms a bit odd TODO consider how to change this
 
 def styleChange():
     styleSet()
 
-class newProjectAtStart(QDialog):
-    def __init__(self, *args, **kwargs):
-        super(newProjectAtStart, self).__init__(*args, **kwargs)
-        layout = QVBoxLayout()
-        self.setGeometry(QRect(200,200,400,200))
-        self.setLayout(layout)
-        self.isModal()
-        projectNamer = QLineEdit()
-        projectNamer.setPlaceholderText("enter your project title here")
-        button = QPushButton("confirm title and choose project folder")
-        button.setEnabled(False)
-        cancel = QPushButton("cancel")
-
-        # if this would return projectTitle it could be passed to a class creating
-        # projects
-        def getTitle():
-            currentProject.projectTitle = projectNamer.text()
-            cleanName = re.sub('[^A-Za-z0-9 ]+', '', currentProject.projectTitle)
-            ##currentProject.projectTitle = cleanName
-            return cleanName
-
-        def buttonToggle():
-            button.setEnabled(True)
-
-        # This is business logic, could be refactored into a ProjectFactory,
-        # this way it would be easier to make changes to the ui
-        def makeNew():
-            logging.info("making a new project")
-            dialog = QFileDialog(self)
-            dialog.setFileMode(QFileDialog.Directory)
-            currentProject.saveLocale = dialog.getExistingDirectory()
-            currentProject.projectTitle =  getTitle()
-            currentProject.projectFolder = currentProject.saveLocale + "/" + currentProject.projectTitle + "/"
-            if os.path.exists(currentProject.projectFolder):
-                logging.info("This project already exists in this directory. Open the existing project, or create something new?")
-                errorNote = QMessageBox(self)
-                errorNote.setWindowTitle("Error")
-                errorNote.setText("A project with this title already exists in this folder. Please enter a new title or select a different folder.")
-                errorNote.setStandardButtons(QMessageBox.Ok)
-                errorNote.exec()
-            else:
-                os.mkdir(currentProject.projectFolder)
-                currentProject.projectPath = currentProject.projectFolder + "/" + currentProject.projectTitle + ".osm"
-                currentProject.projectSet = True
-                with open(currentProject.projectPath, 'w+') as f: #creating the main OSM file
-                    f.write("")
-                currentProject.chapterFolder = currentProject.projectFolder + "chapters/"
-                os.mkdir(currentProject.chapterFolder)
-                logging.info("chapter folder made")
-
-        def cancelPrompt():
-            logging.info("Oops! No new project created.")
-
-        projectNamer.textChanged.connect(buttonToggle)
-
-        layout.addWidget(projectNamer)
-        layout.addWidget(button)
-        layout.addWidget(cancel)
-
-        ##button.clicked.connect(getTitle)
-        button.clicked.connect(makeNew)
-        button.clicked.connect(self.accept)
-
-        cancel.clicked.connect(cancelPrompt)
-        cancel.clicked.connect(self.reject)
-
-        self.exec()
-
 class titleGiver(QDialog):
+
+    partName = "untitled"
+
     def __init__(self, *args, **kwargs):
         super(titleGiver, self).__init__(*args, **kwargs)
         layout = QVBoxLayout()
@@ -119,10 +54,9 @@ class titleGiver(QDialog):
         def getTitle():
             currentProject.partDescription = partNamer.text()
             logging.info(currentProject.partDescription + " cleaned to")
-            cleanName = re.sub('[^A-Za-z0-9 ]+', '', currentProject.partDescription)
-            currentProject.partName = cleanName
-            logging.info(currentProject.partName)
-            currentProject.chapterPath[currentProject.windowCount] = currentProject.chapterFolder + currentProject.partName + ".osmc"
+            titleGiver.partName = re.sub('[^A-Za-z0-9 ]+', '', currentProject.partDescription)
+            logging.info(titleGiver.partName)
+            currentProject.chapterPath[currentProject.windowCount] = currentProject.ProjectMakerLogic.chapterFolder + titleGiver.partName + ".osmc"
             if os.path.exists(currentProject.chapterPath[currentProject.windowCount]):
                 logging.info("This chapter title already exists in this directory. Please choose a new title")
                 errorNote = QMessageBox(self)
@@ -221,10 +155,13 @@ class osmosisWriter(QMainWindow):
         def startNew():
             logging.info("starting a new project")
             currentProject.isNew = True
-            currentProject.projectSet = False
+            projectSet = False
             logging.info("About to newProjectAtStart")
-            newProjectAtStart()
-            if currentProject.projectSet == True:
+            currentProject.ProjectMakerGUI()
+            #do while not set and not cancelled?
+            print(currentProject.ProjectMakerLogic.projectSet)
+            if currentProject.ProjectMakerLogic.projectSet == True:
+                print("project SET")
                 self.newButton.setParent(None)
                 self.openButton.setParent(None)
                 self.newChapter()
@@ -539,31 +476,31 @@ class osmosisWriter(QMainWindow):
         currentProject.windowCount = currentProject.windowCount + 1
         count = currentProject.windowCount
         while currentProject.chapterNameValid == False:
-            titleGiver() #get the chapter title
+            title = titleGiver().partName #get the chapter title
         currentProject.chapterNameValid = False
         currentProject.chapterList[count] = currentProject.chapterPath[count] #chapters with corresponding urls by the order they were created, to be reordered by the user
-        currentProject.chapterNames[currentProject.chapterList[count]] = str(currentProject.partName) #chapterlist refers to the number of each chapter, while chapter name is the user given title
+        currentProject.chapterNames[currentProject.chapterList[count]] = str(title) #chapterlist refers to the number of each chapter, while chapter name is the user given title
         currentProject.openCorrelation[count] = currentProject.chapterList[count] #they start out the same but chapterList changes with user input
 
         currentProject.openWidgets[count] = QWidget()
-        currentProject.openWindows[currentProject.partName] = guiComponents.workArea()
+        currentProject.openWindows[title] = guiComponents.workArea()
         currentProject.openWriters[count] = guiComponents.workspaceTemplate()
         currentProject.openLayouts[count] = QVBoxLayout()
 
-        currentProject.openWindows[currentProject.partName].setWidget(currentProject.openWidgets[count])
+        currentProject.openWindows[title].setWidget(currentProject.openWidgets[count])
         currentProject.openWidgets[count].setLayout(currentProject.openLayouts[count])
 
         currentProject.openLabels[count] = QLabel()
-        currentProject.openLabels[count].setText(currentProject.partName)
+        currentProject.openLabels[count].setText(title)
         currentProject.openLayouts[count].addWidget(currentProject.openLabels[count])
 
         currentProject.openLayouts[count].addWidget(currentProject.openWriters[count])
 
-        self.mdiLayout.addSubWindow(currentProject.openWindows[currentProject.partName])
+        self.mdiLayout.addSubWindow(currentProject.openWindows[title])
 
         currentProject.openLabels[count] = QLabel()
         currentProject.openLabels[count].setText(currentProject.partDescription)
-        currentProject.writerTabs[count] = guiComponents.workTab(str(currentProject.partName))
+        currentProject.writerTabs[count] = guiComponents.workTab(str(title))
 
 
         tabRow = count
@@ -573,7 +510,7 @@ class osmosisWriter(QMainWindow):
         currentProject.writerTabs[count].rearranged.connect(self.resetTabs)
 
         #self.mdiLayout.cascadeSubWindows() #later on, set a toggle of if the user wants tile or cascades
-        currentProject.openWindows[currentProject.partName].show()
+        currentProject.openWindows[title].show()
 
         self.resetTabs()
 
@@ -585,6 +522,7 @@ class osmosisWriter(QMainWindow):
         logging.info("saving!")
         try:
             count = 0
+            print(currentProject.chapterList)
             for i in currentProject.chapterList: #writes down the chapters, once for each in the list
                 count = count + 1
                 chapterID = list(currentProject.openCorrelation.keys())[list(currentProject.openCorrelation.values()).index(currentProject.chapterList[count])]
@@ -593,39 +531,38 @@ class osmosisWriter(QMainWindow):
                     f.write(currentProject.openWriters[chapterID].toHtml())
         except Exception as e:
             logging.info("oops, something went wrong")
-            self.dialog_critical(str(e))
         # This sounds like something we could use multiple times, so it should be in its
         # own method
-        with open(currentProject.projectPath, 'w+') as f: #writing the chapter list in the main OSM file
+
+        with open(currentProject.ProjectMakerLogic.projectPath, 'w+') as f: #writing the chapter list in the main OSM file
             for i in currentProject.chapterList:
                 if i == 1: #if this is the first of the for loop iterations
                     self.projectString = currentProject.chapterList[i]
                 else:
                     self.projectString = self.projectString + "<***ChapterBreak***>" + currentProject.chapterList[i]
             f.write(self.projectString)
-        currentProject.isEdited = False
         self.projectString = ""
         x = 0
 
     def saveFileAs(self): #The function called when clicking the saveButton
-        oldPath = currentProject.projectPath
-        currentProject.projectPath, _ = QFileDialog.getSaveFileName(self, "Save file as", "", "OSM documents (*.osm)")
-        logging.info(currentProject.projectPath)
+        oldPath = currentProject.ProjectMakerLogic.projectPath
+        currentProject.ProjectMakerLogic.projectPath, _ = QFileDialog.getSaveFileName(self, "Save file as", "", "OSM documents (*.osm)")
+        logging.info(currentProject.ProjectMakerLogic.projectPath)
         logging.info("^^^")
-        if oldPath == currentProject.projectPath: #if the path has not changed
+        if oldPath == currentProject.ProjectMakerLogic.projectPath: #if the path has not changed
             logging.info("You seem to be saving as a project that already exists")
             self.saveFile()
-        if currentProject.projectPath == "":
+        if currentProject.ProjectMakerLogic.projectPath == "":
             logging.info("no path chosen. Cancelling save as")
-            currentProject.projectPath = oldPath
+            currentProject.ProjectMakerLogic.projectPath = oldPath
             return #return without a return statement should never be needed
 
     def openFile(self):
         currentProject.isNew = False
         currentPath = ""
         try:
-            currentProject.projectPath, _ = QFileDialog.getOpenFileName(self, "Open file", "", "OSM documents (*.osm)")
-            currentPath = currentProject.projectPath
+            currentProject.ProjectMakerLogic.projectPath, _ = QFileDialog.getOpenFileName(self, "Open file", "", "OSM documents (*.osm)")
+            currentPath = currentProject.ProjectMakerLogic.projectPath
             logging.info(currentPath)
             if currentPath != "": #If it's still blank Dave: this is currentPath == None
                 currentProject.projectSet = True
@@ -650,9 +587,9 @@ class osmosisWriter(QMainWindow):
                 currentProject.projectName = "untitled"
                 logging.info("no project name found.")
 
-            logging.info("projectName set for {}", currentProject.projectPath)
+            logging.info("projectName set for {}", currentProject.ProjectMakerLogic.projectPath)
             try:
-                with open(currentProject.projectPath, 'r') as f:
+                with open(currentProject.ProjectMakerLogic.projectPath, 'r') as f:
                     currentProject.isEdited = False #newly opened files have not been edited
                     currentProject.isNew = False
                     chapterRaw = f.read()
@@ -856,7 +793,7 @@ class osmosisWriter(QMainWindow):
             self.saveFile()
             chapterNamesForExport = list()
             try:
-                with open(currentProject.projectPath, 'r') as f:
+                with open(currentProject.ProjectMakerLogic.projectPath, 'r') as f:
                     chapterRaw = f.read()
                 chapterListMaker = list()
                 chapterListMaker = chapterRaw.split("<***ChapterBreak***>")
@@ -918,7 +855,7 @@ class osmosisWriter(QMainWindow):
             currentProject.isNew = True
             currentProject.projectSet = False
             self.saveAsk.close()
-            newProjectAtStart()
+            currentProject.ProjectMakerGUI()
             if currentProject.projectSet == True:
                 self.mdiLayout.closeAllSubWindows()
                 x = 0
@@ -975,7 +912,7 @@ class osmosisWriter(QMainWindow):
         self.openFile()
 
     def updateWindowTitle(self):
-        projectPathList = currentProject.projectPath.split("/")
+        projectPathList = currentProject.ProjectMakerLogic.projectPath.split("/")
         projectFullName = projectPathList[-1]
         try:
             projectName = re.search('(.+?)\.osm', projectFullName).group(1)
