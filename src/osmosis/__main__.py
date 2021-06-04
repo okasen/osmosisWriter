@@ -23,8 +23,8 @@ from pathlib import Path
 import logging
 
 import osmosis.style as style
-import osmosis.currentProject as currentProject
-from osmosis.currentProject import *
+import osmosis.attributes as attributes
+from osmosis.attributes import *
 import osmosis.guiComponents as guiComponents
 
 home = expanduser("~")
@@ -52,12 +52,12 @@ class titleGiver(QDialog):
         button = QPushButton("confirm")
         button.setEnabled(False)
         def getTitle():
-            currentProject.partDescription = partNamer.text()
-            logging.info(currentProject.partDescription + " cleaned to")
-            titleGiver.partName = re.sub('[^A-Za-z0-9 ]+', '', currentProject.partDescription)
+            attributes.partDescription = partNamer.text()
+            logging.info(attributes.partDescription + " cleaned to")
+            titleGiver.partName = re.sub('[^A-Za-z0-9 ]+', '', attributes.partDescription)
             logging.info(titleGiver.partName)
-            currentProject.chapterPath[currentProject.windowCount] = currentProject.ProjectMakerLogic.chapterFolder + titleGiver.partName + ".osmc"
-            if os.path.exists(currentProject.chapterPath[currentProject.windowCount]):
+            attributes.CurrentProject.chapterPath[attributes.windowCount] = attributes.CurrentProject.folder + titleGiver.partName + ".osmc"
+            if os.path.exists(attributes.chapterPath[attributes.windowCount]):
                 logging.info("This chapter title already exists in this directory. Please choose a new title")
                 errorNote = QMessageBox(self)
                 errorNote.setWindowTitle("Error")
@@ -65,12 +65,12 @@ class titleGiver(QDialog):
                 errorNote.setStandardButtons(QMessageBox.Ok)
                 errorNote.exec()
             else:
-                currentProject.chapterNameValid = True
+                attributes.chapterNameValid = True
         def buttonToggle():
             button.setEnabled(True)
         def makeNewPart():
             logging.info("making new chapter")
-            with open(currentProject.chapterPath[currentProject.windowCount], 'w+') as f: #creating the main OSM file
+            with open(attributes.chapterPath[attributes.windowCount], 'w+') as f: #creating the main OSM file
                 f.write("")
             self.accept()
         partNamer.textChanged.connect(buttonToggle)
@@ -133,8 +133,8 @@ class osmosisWriter(QMainWindow):
 
 
         def reTriggerTabs():
-            for i in currentProject.writerTabs:
-                currentProject.writerTabs[i].rearranged.connect(self.resetTabs)
+            for i in attributes.writerTabs:
+                attributes.writerTabs[i].rearranged.connect(self.resetTabs)
 
         self.resetting.connect(reTriggerTabs)
 
@@ -154,13 +154,13 @@ class osmosisWriter(QMainWindow):
 
         def startNew():
             logging.info("starting a new project")
-            currentProject.isNew = True
+            attributes.isNew = True
             projectSet = False
             logging.info("About to newProjectAtStart")
-            currentProject.ProjectMakerGUI()
+            attributes.ProjectMakerGUI()
             #do while not set and not cancelled?
-            print(currentProject.ProjectMakerLogic.projectSet)
-            if currentProject.ProjectMakerLogic.projectSet == True:
+            print(attributes.ProjectStarterLogic.projectSet)
+            if attributes.ProjectStarterLogic.projectSet == True:
                 print("project SET")
                 self.newButton.setParent(None)
                 self.openButton.setParent(None)
@@ -175,7 +175,7 @@ class osmosisWriter(QMainWindow):
         def startOpen():
             logging.info("about to open file")
             self.openFile()
-            if currentProject.projectSet == True:
+            if attributes.projectSet == True:
                 self.mdiLayout.show()
                 self.newButton.setParent(None)
                 self.openButton.setParent(None)
@@ -352,10 +352,10 @@ class osmosisWriter(QMainWindow):
         x = 0
         xOffset = 0
         self.mdiLayout.cascadeSubWindows()
-        for i in currentProject.openWindows:
+        for i in attributes.openWindows:
             xCascader = x * 40
             yCascader = y * 40
-            currentProject.openWindows[i].setGeometry(QRect(xCascader + xOffset, yCascader, 700, 500))
+            attributes.openWindows[i].setGeometry(QRect(xCascader + xOffset, yCascader, 700, 500))
             x = x + 1
             y = y + 1
             if y == 11: #to prevent the tiles from going endlessly offscreen to the bottom right
@@ -364,41 +364,41 @@ class osmosisWriter(QMainWindow):
                 x = 0
 
     def resetTabs(self):
-        logging.info(currentProject.writerTabs)
-        for i in currentProject.writerTabs:
-            currentProject.writerTabs[i].setParent(None)
-        for i in currentProject.chapterList:
-            currentProject.writerTabs[i] = guiComponents.workTab(currentProject.chapterNames[currentProject.chapterList[i]])
+        logging.info(attributes.writerTabs)
+        for i in attributes.writerTabs:
+            attributes.writerTabs[i].setParent(None)
+        for i in attributes.chapterList:
+            attributes.writerTabs[i] = guiComponents.workTab(attributes.chapterNames[attributes.chapterList[i]])
             tabRow = i - 1
-            self.workTabs.addWidget(currentProject.writerTabs[i],tabRow,0)
-            currentProject.writerTabs[i].clicked.connect(partial(self.updateActiveWindow, currentProject.chapterNames[currentProject.chapterList[i]]))
+            self.workTabs.addWidget(attributes.writerTabs[i],tabRow,0)
+            attributes.writerTabs[i].clicked.connect(partial(self.updateActiveWindow, attributes.chapterNames[attributes.chapterList[i]]))
 
             self.resetting.emit()
         self.scroll.setMinimumWidth(240)
 
     def closeEvent(self, event):
-        if currentProject.isEdited:
+        if attributes.isEdited:
             event.ignore()
             self.savePopup("closeAttempt")
 
     def checkWindowActive(self):
         currentlyOpen = ""
-        logging.info(currentProject.openWindows)
-        for i in currentProject.openWindows:
+        logging.info(attributes.openWindows)
+        for i in attributes.openWindows:
             logging.info(i)
-            if currentProject.openWindows[i] == self.mdiLayout.activeSubWindow():
-                logging.info(currentProject.openWindows[i])
+            if attributes.openWindows[i] == self.mdiLayout.activeSubWindow():
+                logging.info(attributes.openWindows[i])
                 logging.info(i)
                 currentlyOpen = i
                 break
             currentlyOpen = i
-        logging.info(currentlyOpen, "is open")
+        logging.info(currentlyOpen + "is open")
         return currentlyOpen
 
     def checkWriterActive(self):
         window = self.checkWindowActive()
-        winPath = list(currentProject.chapterNames.keys())[list(currentProject.chapterNames.values()).index(window)]
-        writerNum = list(currentProject.openCorrelation.keys())[list(currentProject.openCorrelation.values()).index(winPath)]
+        winPath = list(attributes.chapterNames.keys())[list(attributes.chapterNames.values()).index(window)]
+        writerNum = list(attributes.openCorrelation.keys())[list(attributes.openCorrelation.values()).index(winPath)]
         return writerNum
 
     def ctrlActions(self, source):
@@ -406,64 +406,64 @@ class osmosisWriter(QMainWindow):
         logging.info("ctrl Action pressed " + source)
         if source == "undo":
             logging.info("undo")
-            currentProject.openWriters[writer].undo()
+            attributes.openWriters[writer].undo()
         elif source == "redo":
             logging.info("redo")
-            currentProject.openWriters[writer].redo()
+            attributes.openWriters[writer].redo()
         elif source == "cut":
-            currentProject.openWriters[writer].cut()
+            attributes.openWriters[writer].cut()
         elif source == "copy":
-            currentProject.openWriters[writer].copy()
+            attributes.openWriters[writer].copy()
         elif source == "paste":
-            currentProject.openWriters[writer].paste()
+            attributes.openWriters[writer].paste()
 
     def fontSize(self, s):
         writer = self.checkWriterActive()
-        currentProject.openWriters[writer].setFontPointSize(s)
+        attributes.openWriters[writer].setFontPointSize(s)
 
     def fontFamily(self):
         writer = self.checkWriterActive()
-        currentProject.openWriters[writer].setCurrentFont(self.fonts.currentFont())
-        currentProject.openWriters[writer].setFontPointSize(float(self.fontsize.currentText()))
+        attributes.openWriters[writer].setCurrentFont(self.fonts.currentFont())
+        attributes.openWriters[writer].setFontPointSize(float(self.fontsize.currentText()))
 
     def bold(self):
         writer = self.checkWriterActive()
         if self.bolded == False:
-            currentProject.openWriters[writer].setFontWeight(QFont.Bold)
+            attributes.openWriters[writer].setFontWeight(QFont.Bold)
             self.bolded = True
         elif self.bolded == True:
-            currentProject.openWriters[writer].setFontWeight(QFont.Normal)
+            attributes.openWriters[writer].setFontWeight(QFont.Normal)
             self.bolded = False
 
     def setItalic(self):
         writer = self.checkWriterActive()
         if self.italic == False:
-            currentProject.openWriters[writer].setFontItalic(True)
+            attributes.openWriters[writer].setFontItalic(True)
             self.italic = True
         elif self.italic == True:
-            currentProject.openWriters[writer].setFontItalic(False)
+            attributes.openWriters[writer].setFontItalic(False)
             self.italic = False
 
     def under(self):
         writer = self.checkWriterActive()
         if self.ul == False:
-            currentProject.openWriters[writer].setFontUnderline(True)
+            attributes.openWriters[writer].setFontUnderline(True)
             self.ul = True
         elif self.ul == True:
-            currentProject.openWriters[writer].setFontUnderline(False)
+            attributes.openWriters[writer].setFontUnderline(False)
             self.ul = False
 
 
     def maximizeMainWindow(self):
         try:
             window = self.checkWindowActive()
-            currentProject.openWindows[window].showMaximized()
+            attributes.openWindows[window].showMaximized()
         except:
             logging.info("no window activated")
 
         def keyPressEvent(self, *args, **kwargs):
-            if currentProject.isEdited == False: #prevents isEdited from being changed when already true
-                currentProject.isEdited = True
+            if attributes.isEdited == False: #prevents isEdited from being changed when already true
+                attributes.isEdited = True
             return QTextEdit.keyPressEvent(self, *args, **kwargs)
 
     def newProject(self):
@@ -471,46 +471,46 @@ class osmosisWriter(QMainWindow):
         self.savePopup("newProject")
 
     def newChapter(self):
-        for i in currentProject.writerTabs:
-            currentProject.writerTabs[i].setParent(None)
-        currentProject.windowCount = currentProject.windowCount + 1
-        count = currentProject.windowCount
-        while currentProject.chapterNameValid == False:
+        for i in attributes.writerTabs:
+            attributes.writerTabs[i].setParent(None)
+        attributes.windowCount = attributes.windowCount + 1
+        count = attributes.windowCount
+        while attributes.chapterNameValid == False:
             title = titleGiver().partName #get the chapter title
-        currentProject.chapterNameValid = False
-        currentProject.chapterList[count] = currentProject.chapterPath[count] #chapters with corresponding urls by the order they were created, to be reordered by the user
-        currentProject.chapterNames[currentProject.chapterList[count]] = str(title) #chapterlist refers to the number of each chapter, while chapter name is the user given title
-        currentProject.openCorrelation[count] = currentProject.chapterList[count] #they start out the same but chapterList changes with user input
+        attributes.chapterNameValid = False
+        attributes.chapterList[count] = attributes.chapterPath[count] #chapters with corresponding urls by the order they were created, to be reordered by the user
+        attributes.chapterNames[attributes.chapterList[count]] = str(title) #chapterlist refers to the number of each chapter, while chapter name is the user given title
+        attributes.openCorrelation[count] = attributes.chapterList[count] #they start out the same but chapterList changes with user input
 
-        currentProject.openWidgets[count] = QWidget()
-        currentProject.openWindows[title] = guiComponents.workArea()
-        currentProject.openWriters[count] = guiComponents.workspaceTemplate()
-        currentProject.openLayouts[count] = QVBoxLayout()
+        attributes.openWidgets[count] = QWidget()
+        attributes.openWindows[title] = guiComponents.workArea()
+        attributes.openWriters[count] = guiComponents.workspaceTemplate()
+        attributes.openLayouts[count] = QVBoxLayout()
 
-        currentProject.openWindows[title].setWidget(currentProject.openWidgets[count])
-        currentProject.openWidgets[count].setLayout(currentProject.openLayouts[count])
+        attributes.openWindows[title].setWidget(attributes.openWidgets[count])
+        attributes.openWidgets[count].setLayout(attributes.openLayouts[count])
 
-        currentProject.openLabels[count] = QLabel()
-        currentProject.openLabels[count].setText(title)
-        currentProject.openLayouts[count].addWidget(currentProject.openLabels[count])
+        attributes.openLabels[count] = QLabel()
+        attributes.openLabels[count].setText(title)
+        attributes.openLayouts[count].addWidget(attributes.openLabels[count])
 
-        currentProject.openLayouts[count].addWidget(currentProject.openWriters[count])
+        attributes.openLayouts[count].addWidget(attributes.openWriters[count])
 
-        self.mdiLayout.addSubWindow(currentProject.openWindows[title])
+        self.mdiLayout.addSubWindow(attributes.openWindows[title])
 
-        currentProject.openLabels[count] = QLabel()
-        currentProject.openLabels[count].setText(currentProject.partDescription)
-        currentProject.writerTabs[count] = guiComponents.workTab(str(title))
+        attributes.openLabels[count] = QLabel()
+        attributes.openLabels[count].setText(attributes.partDescription)
+        attributes.writerTabs[count] = guiComponents.workTab(str(title))
 
 
         tabRow = count
-        self.workTabs.addWidget(currentProject.writerTabs[count], tabRow, 1)
+        self.workTabs.addWidget(attributes.writerTabs[count], tabRow, 1)
 
-        currentProject.writerTabs[count].clicked.connect(partial(self.updateActiveWindow, currentProject.chapterNames[currentProject.openCorrelation[count]]))
-        currentProject.writerTabs[count].rearranged.connect(self.resetTabs)
+        attributes.writerTabs[count].clicked.connect(partial(self.updateActiveWindow, attributes.chapterNames[attributes.openCorrelation[count]]))
+        attributes.writerTabs[count].rearranged.connect(self.resetTabs)
 
         #self.mdiLayout.cascadeSubWindows() #later on, set a toggle of if the user wants tile or cascades
-        currentProject.openWindows[title].show()
+        attributes.openWindows[title].show()
 
         self.resetTabs()
 
@@ -522,84 +522,84 @@ class osmosisWriter(QMainWindow):
         logging.info("saving!")
         try:
             count = 0
-            print(currentProject.chapterList)
-            for i in currentProject.chapterList: #writes down the chapters, once for each in the list
+            print(attributes.chapterList)
+            for i in attributes.chapterList: #writes down the chapters, once for each in the list
                 count = count + 1
-                chapterID = list(currentProject.openCorrelation.keys())[list(currentProject.openCorrelation.values()).index(currentProject.chapterList[count])]
+                chapterID = list(attributes.openCorrelation.keys())[list(attributes.openCorrelation.values()).index(attributes.chapterList[count])]
                 #openCorrelation[count] should give you the path that correlates with that writer. To check
-                with open(currentProject.chapterList[count], 'w+') as f:
-                    f.write(currentProject.openWriters[chapterID].toHtml())
+                with open(attributes.chapterList[count], 'w+') as f:
+                    f.write(attributes.openWriters[chapterID].toHtml())
         except Exception as e:
             logging.info("oops, something went wrong")
         # This sounds like something we could use multiple times, so it should be in its
         # own method
 
-        with open(currentProject.ProjectMakerLogic.projectPath, 'w+') as f: #writing the chapter list in the main OSM file
-            for i in currentProject.chapterList:
+        with open(attributes.CurrentProject.path, 'w+') as f: #writing the chapter list in the main OSM file
+            for i in attributes.chapterList:
                 if i == 1: #if this is the first of the for loop iterations
-                    self.projectString = currentProject.chapterList[i]
+                    self.projectString = attributes.chapterList[i]
                 else:
-                    self.projectString = self.projectString + "<***ChapterBreak***>" + currentProject.chapterList[i]
+                    self.projectString = self.projectString + "<***ChapterBreak***>" + attributes.chapterList[i]
             f.write(self.projectString)
         self.projectString = ""
         x = 0
 
     def saveFileAs(self): #The function called when clicking the saveButton
-        oldPath = currentProject.ProjectMakerLogic.projectPath
-        currentProject.ProjectMakerLogic.projectPath, _ = QFileDialog.getSaveFileName(self, "Save file as", "", "OSM documents (*.osm)")
-        logging.info(currentProject.ProjectMakerLogic.projectPath)
+        oldPath = attributes.CurrentProject.path
+        attributes.CurrentProject.path, _ = QFileDialog.getSaveFileName(self, "Save file as", "", "OSM documents (*.osm)")
+        logging.info(attributes.CurrentProject.path)
         logging.info("^^^")
-        if oldPath == currentProject.ProjectMakerLogic.projectPath: #if the path has not changed
+        if oldPath == attributes.CurrentProject.path: #if the path has not changed
             logging.info("You seem to be saving as a project that already exists")
             self.saveFile()
-        if currentProject.ProjectMakerLogic.projectPath == "":
+        if attributes.CurrentProject.path == "":
             logging.info("no path chosen. Cancelling save as")
-            currentProject.ProjectMakerLogic.projectPath = oldPath
+            attributes.CurrentProject.path = oldPath
             return #return without a return statement should never be needed
 
     def openFile(self):
-        currentProject.isNew = False
+        attributes.isNew = False
         currentPath = ""
         try:
-            currentProject.ProjectMakerLogic.projectPath, _ = QFileDialog.getOpenFileName(self, "Open file", "", "OSM documents (*.osm)")
-            currentPath = currentProject.ProjectMakerLogic.projectPath
+            attributes.CurrentProject.path, _ = QFileDialog.getOpenFileName(self, "Open file", "", "OSM documents (*.osm)")
+            currentPath = attributes.CurrentProject.path
             logging.info(currentPath)
             if currentPath != "": #If it's still blank Dave: this is currentPath == None
-                currentProject.projectSet = True
-        except: # broad excepts are evil, catch the error you are actually expecting
-            currentProject.projectSet = False
+                attributes.CurrentProject.set = True
+        except: # broad excepts are evil, catch the error you are actually expecting TODO fix this
+            attributes.CurrentProject.set = False
             logging.info("project not set because path is empty")
             return
-        if currentProject.projectSet == True:
+        if attributes.CurrentProject.set == True:
             projectPathList = currentPath.split("/")
             projectFullName = projectPathList[-1]
             logging.info("was:")
-            for i in currentProject.writerTabs:
-                currentProject.writerTabs[i].setParent(None)#remove writertabs
+            for i in attributes.writerTabs:
+                attributes.writerTabs[i].setParent(None)#remove writertabs
             logging.info("part one popped")
-            for i in currentProject.openWindows:
-                currentProject.openWindows[i].close()#remove windows
+            for i in attributes.openWindows:
+                attributes.openWindows[i].close()#remove windows
             logging.info("part two popped")
             logging.info("about to try creating")
             try:
-                currentProject.projectName = re.search('(.+?)\.osm', projectFullName).group(1)
+                attributes.projectName = re.search('(.+?)\.osm', projectFullName).group(1)
             except:
-                currentProject.projectName = "untitled"
+                attributes.projectName = "untitled"
                 logging.info("no project name found.")
 
-            logging.info("projectName set for {}", currentProject.ProjectMakerLogic.projectPath)
+            logging.info("projectName set for " + attributes.CurrentProject.path)
             try:
-                with open(currentProject.ProjectMakerLogic.projectPath, 'r') as f:
-                    currentProject.isEdited = False #newly opened files have not been edited
-                    currentProject.isNew = False
+                with open(attributes.CurrentProject.path, 'r') as f:
+                    attributes.isEdited = False #newly opened files have not been edited
+                    attributes.isNew = False
                     chapterRaw = f.read()
                     chapterListMaker = list()
                     chapterListMaker = chapterRaw.split("<***ChapterBreak***>")
-                    currentProject.projectSet = True
+                    attributes.CurrentProject.set = True
             except:
                 logging.info("oops, it looks like your .osm file is blank.")
 
-                currentProject.projectSet = False
+                attributes.CurrentProject.set = False
                 self.__init__()
 
             #getting chapter folder:
@@ -607,11 +607,11 @@ class osmosisWriter(QMainWindow):
                 #os.path.split(path) does this already
                 chapterPathList = i.split("/")
                 del chapterPathList[-1]
-                currentProject.chapterFolder = "/".join(chapterPathList) + "/"
+                attributes.CurrentProject.chapterFolder = "/".join(chapterPathList) + "/"
 
             # adding on lost files #putting this in its own function would increase
             # readability and should be easier to test TODO
-            chapFiles = [f for f in listdir(currentProject.chapterFolder) if isfile(join(currentProject.chapterFolder, f))]
+            chapFiles = [f for f in listdir(attributes.CurrentProject.chapterFolder) if isfile(join(attributes.CurrentProject.chapterFolder, f))]
             logging.info(chapFiles)
             lostChapFiles = list()
             for i in chapFiles:
@@ -623,10 +623,10 @@ class osmosisWriter(QMainWindow):
                         match = True
                         break
                 if match == False:
-                    lostChapterName = currentProject.chapterFolder + i
+                    lostChapterName = attributes.CurrentProject.chapterFolder + i
                     logging.info(lostChapterName)
                     lostChapFiles.append(lostChapterName)
-            logging.info("these chapters were lost: {}", lostChapFiles)
+            logging.info("these chapters were lost: {}" + lostChapFiles)
             logging.info("adding these chapters at the end")
             chapterListMaker += (lostChapFiles)
             logging.info(chapterListMaker)
@@ -638,14 +638,14 @@ class osmosisWriter(QMainWindow):
                 for i in chapterListMaker:
                     if os.path.exists(i):
                         x = x + 1
-                        currentProject.chapterList[x] =  i
-                logging.info("chapterList is {}", currentProject.chapterList)
+                        attributes.chapterList[x] =  i
+                logging.info("chapterList is {}" + attributes.chapterList)
                 for i in chapterListMaker:
                     if os.path.exists(i):
-                        logging.info("we are currently working through CLM {}", i)
-                        currentProject.windowCount = currentProject.windowCount + 1
-                        current = currentProject.windowCount
-                        currentProject.chapterPath[current] = i
+                        logging.info("we are currently working through CLM {}" + i)
+                        attributes.windowCount = attributes.windowCount + 1
+                        current = attributes.windowCount
+                        attributes.CurrentProject.chapterPath[current] = i
                         chapterPathList = i.split("/")
                         chapterFullName = chapterPathList[-1]
 
@@ -653,51 +653,51 @@ class osmosisWriter(QMainWindow):
                             chapterName = re.search('(.+?)\.osmc', chapterFullName).group(1)
                         except:
                             chapterName = "unnamed"
-                        currentProject.openCorrelation[currentProject.windowCount] = i
-                        currentProject.chapterNames[i] = chapterName #to get the correlated text with this later, ask for currentProject.chapterNames[openCorrelation[currentProject.windowCount]]
-                        #which along with currentProject.openWriters[currentProject.windowCount] will get you the correct chapter and text for the requisite window
-                        #TODO make this not require copy/paste or superhuman memory
+                        attributes.openCorrelation[attributes.windowCount] = i
+                        attributes.chapterNames[i] = chapterName #to get the correlated text with this later, ask for attributes.chapterNames[openCorrelation[attributes.windowCount]]
+                        #which along with attributes.openWriters[attributes.windowCount] will get you the correct chapter and text for the requisite window
+                        #TODO BIG make this not require copy/paste or superhuman memory
                         try:
                             with open(i) as f:
                                 contents = f.read()
                         except:
                             logging.info("looks like a chapter was deleted improperly")
 
-                        currentProject.openLayouts[current] = QVBoxLayout()
+                        attributes.openLayouts[current] = QVBoxLayout()
 
-                        currentProject.openWidgets[current] = QWidget()
+                        attributes.openWidgets[current] = QWidget()
 
-                        currentProject.openWriters[current] = guiComponents.workspaceTemplate()
+                        attributes.openWriters[current] = guiComponents.workspaceTemplate()
 
-                        currentProject.openWindows[chapterName] = guiComponents.workArea()
+                        attributes.openWindows[chapterName] = guiComponents.workArea()
 
-                        currentProject.openWidgets[current].setLayout(currentProject.openLayouts[current])
+                        attributes.openWidgets[current].setLayout(attributes.openLayouts[current])
 
-                        currentProject.openLabels[current] = QLabel()
-                        currentProject.openLabels[current].setText(chapterName)
-                        currentProject.openLayouts[current].addWidget(currentProject.openLabels[current])
+                        attributes.openLabels[current] = QLabel()
+                        attributes.openLabels[current].setText(chapterName)
+                        attributes.openLayouts[current].addWidget(attributes.openLabels[current])
 
-                        currentProject.openLayouts[current].addWidget(currentProject.openWriters[current])
+                        attributes.openLayouts[current].addWidget(attributes.openWriters[current])
 
-                        currentProject.openWindows[chapterName].setWidget(currentProject.openWidgets[current])
+                        attributes.openWindows[chapterName].setWidget(attributes.openWidgets[current])
 
-                        self.mdiLayout.addSubWindow(currentProject.openWindows[chapterName])
+                        self.mdiLayout.addSubWindow(attributes.openWindows[chapterName])
                         self.mdiLayout.cascadeSubWindows() #later on, set a toggle of if the user wants tile or cascades
-                        currentProject.openWindows[chapterName].show()
+                        attributes.openWindows[chapterName].show()
 
-                        currentProject.openWriters[current].setHtml(contents)
+                        attributes.openWriters[current].setHtml(contents)
 
-                        currentProject.writerTabs[current] = guiComponents.workTab(chapterName)
+                        attributes.writerTabs[current] = guiComponents.workTab(chapterName)
 
-                        currentProject.writerTabs[current].clicked.connect(
+                        attributes.writerTabs[current].clicked.connect(
                             partial(self.updateActiveWindow,
-                                    currentProject.chapterNames[currentProject.openCorrelation[current]]
+                                    attributes.chapterNames[attributes.openCorrelation[current]]
                                     )
                         )
 
-                        currentProject.writerTabs[current].rearranged.connect(self.resetTabs)
+                        attributes.writerTabs[current].rearranged.connect(self.resetTabs)
                         tabRow = current - 1
-                        self.workTabs.addWidget(currentProject.writerTabs[current], tabRow, 1)
+                        self.workTabs.addWidget(attributes.writerTabs[current], tabRow, 1)
                     else:
                         chapterListMaker.remove(i)
 
@@ -705,17 +705,17 @@ class osmosisWriter(QMainWindow):
                 self.updateWindowTitle()
                 self.bigCascade()
                 self.resetTabs()
-                logging.info(currentProject.writerTabs)
+                logging.info(attributes.writerTabs)
 
             except Exception as e:
                 logging.info("oops, it looks like your .osm file is improperly formatted.")
 
     def deleteChapter(self): # this function mixes business logic and gui logic.
         chapterToDeleteWindow = self.checkWindowActive()
-        chapterOriginalPath = list(currentProject.chapterNames.keys())[list(currentProject.chapterNames.values()).index(chapterToDeleteWindow)]
+        chapterOriginalPath = list(attributes.chapterNames.keys())[list(attributes.chapterNames.values()).index(chapterToDeleteWindow)]
         logging.info("delete")
-        delPath = currentProject.chapterFolder + "deleted"
-        chapterDeletePath = delPath + "/" + currentProject.chapterNames[chapterOriginalPath] + ".osmc" #BIZ
+        delPath = attributes.CurrentProject.chapterFolder + "deleted"
+        chapterDeletePath = delPath + "/" + attributes.chapterNames[chapterOriginalPath] + ".osmc" #BIZ
         logging.info(chapterDeletePath)
         if not os.path.exists(delPath):
             os.mkdir(delPath)
@@ -731,7 +731,7 @@ class osmosisWriter(QMainWindow):
         #TODO: Above this line and below this line are Business and GUI logic respectively
         #Move them to separate functions
 
-        totalTabs = len(currentProject.chapterList)
+        totalTabs = len(attributes.chapterList)
         logging.info("there are x tabs: ")
         logging.info(totalTabs) #find the position of the last tab in the sequence
 
@@ -741,13 +741,13 @@ class osmosisWriter(QMainWindow):
         z = 0
         sourceSlot = 0 #the slot the tab came from
 
-        for i in currentProject.chapterList: #probably needs the single letter names cleaned
+        for i in attributes.chapterList: #probably needs the single letter names cleaned
             z = z + 1
-            logging.info(currentProject.chapterList)
+            logging.info(attributes.chapterList)
             logging.info(chapterOriginalPath)
-            if currentProject.chapterList[z] == chapterOriginalPath:
+            if attributes.chapterList[z] == chapterOriginalPath:
                     sourceSlot = z
-                    logging.info("source slot {}", sourceSlot)
+                    logging.info("source slot {}" + sourceSlot)
 
         if sourceSlot == totalTabs: #in this case, if it's last on the list
             #do nothing
@@ -755,45 +755,45 @@ class osmosisWriter(QMainWindow):
 
         elif sourceSlot < totalTabs:
             logging.info("in")
-            for i in currentProject.chapterList:
+            for i in attributes.chapterList:
                 x = x + 1 #determines where is slotted, please rename this oh wow
                 y = y + 1 #determines what is slotted, same, needs a better name
                 if x == totalTabs: #you're placing ABOVE the drop num
                     logging.info("final slot")
-                    switcher[totalTabs] = currentProject.chapterList[sourceSlot]
+                    switcher[totalTabs] = attributes.chapterList[sourceSlot]
                     logging.info("switched to back")
                     y = y - 1 #realign x and y
                 elif x == sourceSlot:
                     logging.info("at source")
                     y = y + 1
-                    switcher[x] = currentProject.chapterList[y]
+                    switcher[x] = attributes.chapterList[y]
                 else:
                     logging.info("before")
-                    switcher[x] = currentProject.chapterList[y]
+                    switcher[x] = attributes.chapterList[y]
         #just move everything up after the source slot
         q = 0
         for i in switcher:
             q = q + 1
-            currentProject.chapterList[q] = switcher[q]
-        numLeft = len(currentProject.chapterList)
+            attributes.chapterList[q] = switcher[q]
+        numLeft = len(attributes.chapterList)
         if numLeft > 1:
-            del currentProject.chapterList[numLeft]
-            currentProject.openWindows[chapterToDeleteWindow].close()
-            currentProject.openWindows.pop(chapterToDeleteWindow, None)
-            currentProject.windowCount = currentProject.windowCount - 1
+            del attributes.chapterList[numLeft]
+            attributes.openWindows[chapterToDeleteWindow].close()
+            attributes.openWindows.pop(chapterToDeleteWindow, None)
+            attributes.windowCount = attributes.windowCount - 1
         else:
             logging.info("you can't remove the last tab from your project!")
         logging.info("about to rearrange")
         self.resetTabs() #majorly GUI
-        logging.info(currentProject.chapterList)
+        logging.info(attributes.chapterList)
 
     def exportFile(self):
-        if currentProject.projectSet == True:
+        if attributes.projectSet == True:
             logging.info("preparing to export")
             self.saveFile()
             chapterNamesForExport = list()
             try:
-                with open(currentProject.ProjectMakerLogic.projectPath, 'r') as f:
+                with open(attributes.CurrentProject.path, 'r') as f:
                     chapterRaw = f.read()
                 chapterListMaker = list()
                 chapterListMaker = chapterRaw.split("<***ChapterBreak***>")
@@ -803,10 +803,10 @@ class osmosisWriter(QMainWindow):
 
                 for i in chapterListMaker:
                     x = x + 1
-                    currentProject.chapterList[x] =  i
+                    attributes.chapterList[x] =  i
                 for i in chapterListMaker:
                     z = z + 1 #tabbing through windows
-                    writingFrom = currentProject.chapterList[z]
+                    writingFrom = attributes.chapterList[z]
                     writingFromList = writingFrom.split("/")
                     chapterFullName = writingFromList[-1]
                     try:
@@ -817,20 +817,20 @@ class osmosisWriter(QMainWindow):
                     chapterTitleHTML = "<p><h2>" + chapterName + "</h2><p>"
                     chapterNamesForExport.append(chapterTitleHTML)
 
-                exportPath, _ = QFileDialog.getSaveFileName(self, "Save file", "", "")
+                exportPath, _ = QFileDialog.getSaveFileName(self, "Save file")
                 htmlPath = exportPath + ".html"
                 docPath = Path(exportPath + ".doc")
-                logging.info("exporting to {}", htmlPath)
+                logging.info("exporting to {}" + htmlPath)
                 with open(htmlPath, 'a+') as f:
                     for i in chapterListMaker:
                         f.write(chapterNamesForExport[y])
                         logging.info("name written")
                         y = y + 1
-                        chapterID = list(currentProject.openCorrelation.keys())[
-                            list(currentProject.openCorrelation.values()).index(currentProject.chapterList[y])
+                        chapterID = list(attributes.openCorrelation.keys())[
+                            list(attributes.openCorrelation.values()).index(attributes.chapterList[y])
                         ]
                         logging.info("about to write contents")
-                        f.write(currentProject.openWriters[chapterID].toHtml())
+                        f.write(attributes.openWriters[chapterID].toHtml())
 
                 docParser = HtmlToDocx()
                 docParser.parse_html_file(htmlPath, docPath)
@@ -852,33 +852,33 @@ class osmosisWriter(QMainWindow):
             self.openFile()
         else: #if new file
             logging.info("getting ready for the new project")
-            currentProject.isNew = True
-            currentProject.projectSet = False
+            attributes.isNew = True
+            attributes.CurrentProject.set = False
             self.saveAsk.close()
-            currentProject.ProjectMakerGUI()
-            if currentProject.projectSet == True:
+            attributes.ProjectMakerGUI()
+            if attributes.CurrentProject.set == True:
                 self.mdiLayout.closeAllSubWindows()
                 x = 0
-                for i in currentProject.writerTabs:
+                for i in attributes.writerTabs:
                     x = x + 1
-                    currentProject.writerTabs[x].setParent(None)
+                    attributes.writerTabs[x].setParent(None)
                 x = 0
-                for i in currentProject.openWriters:
+                for i in attributes.openWriters:
                     x = x + 1
-                    currentProject.openWriters[x].setParent(None)
-                currentProject.windowCount = 0
+                    attributes.openWriters[x].setParent(None)
+                attributes.windowCount = 0
                 logging.info("window clear done")
-                currentProject.openWindows.clear() #the windows that hold writers, in the order they were created
-                currentProject.openCorrelation.clear() #just ensures that the keys in openWindows correlate to the correct keys in openWriters, and therefor, that the values are correct
-                currentProject.chapterList.clear() #holds the chapter paths in order of how the user has organised them, and is used to create the main OSM file's structure
-                currentProject.chapterNames.clear() #chapter's path :: chapter's name, will not change with user input
-                currentProject.writerTabs.clear()
-                currentProject.openWriters.clear()
-                logging.info(currentProject.chapterPath)
-                currentProject.chapterPath.clear()
+                attributes.openWindows.clear() #the windows that hold writers, in the order they were created
+                attributes.openCorrelation.clear() #just ensures that the keys in openWindows correlate to the correct keys in openWriters, and therefor, that the values are correct
+                attributes.chapterList.clear() #holds the chapter paths in order of how the user has organised them, and is used to create the main OSM file's structure
+                attributes.chapterNames.clear() #chapter's path :: chapter's name, will not change with user input
+                attributes.writerTabs.clear()
+                attributes.openWriters.clear()
+                logging.info(attributes.CurrentProject.chapterPath)
+                attributes.chapterPath.clear()
                 logging.info("cleared")
             else:
-                currentProject.projectSet == True #reset the projectSet
+                attributes.CurrentProject.set == True #reset the projectSet
 
     def goHereToSaveFirst(self, endResult):
         logging.info("saving first")
@@ -912,7 +912,7 @@ class osmosisWriter(QMainWindow):
         self.openFile()
 
     def updateWindowTitle(self):
-        projectPathList = currentProject.ProjectMakerLogic.projectPath.split("/")
+        projectPathList = attributes.CurrentProject.path.split("/")
         projectFullName = projectPathList[-1]
         try:
             projectName = re.search('(.+?)\.osm', projectFullName).group(1)
@@ -923,7 +923,7 @@ class osmosisWriter(QMainWindow):
     def updateActiveWindow(self, windowName):
         #set the active window to the one correlated with the button pressed
         logging.info(windowName)
-        self.mdiLayout.setActiveSubWindow(currentProject.openWindows[windowName])
+        self.mdiLayout.setActiveSubWindow(attributes.openWindows[windowName])
 
 
 app = QApplication(sys.argv)

@@ -34,34 +34,40 @@ chapterPath = dict() #chapter's path linked to a number that correlates with the
 chapterNameValid = False
 themeChoice = ""
 
-class ProjectMakerLogic():
-    projectSet = False
-    projectFolder = "nofolder"
-    projectPath = "none"
-    chapterFolder = projectFolder + "chapters/"
-    projectTitle = "untitled"
+
+
+class Project:
+    set = False
+    folder = "nofolder"
+    path = "none"
+    chapterFolder = projectFolder + "/chapters/"
+    title = "untitled"
+
+CurrentProject = Project()
+
+class ProjectStarterLogic():
 
     def makeNew():
-        ProjectMakerLogic.projectSet = False
+        CurrentProject = Project()
         dialog = QFileDialog()
         dialog.setFileMode(QFileDialog.Directory)
         saveLocale = dialog.getExistingDirectory()
-        ProjectMakerLogic.projectFolder = saveLocale + "/" + ProjectMakerLogic.projectTitle + "/"
-        if os.path.exists(ProjectMakerLogic.projectFolder):
-            logging.info("This project " + ProjectMakerLogic.projectFolder +" already exists in this directory. Open the existing project, or create something new?")
+        CurrentProject.folder = saveLocale + "/" + CurrentProject.title + "/"
+        CurrentProject.chapterFolder = CurrentProject.folder + "/chapters/"
+        if os.path.exists(CurrentProject.folder):
+            logging.info("This project " + CurrentProject.folder +" already exists in this directory. Open the existing project, or create something new?")
             errorNote = QMessageBox()
             errorNote.setWindowTitle("Error")
-            errorNote.setText("A project with this title" + ProjectMakerLogic.projectFolder + "already exists in this folder. Please enter a new title or select a different folder.")
+            errorNote.setText("A project with this title" + CurrentProject.folder + "already exists in this folder. Please enter a new title or select a different folder.")
             errorNote.setStandardButtons(QMessageBox.Ok)
             errorNote.exec()
         else:
-            os.mkdir(ProjectMakerLogic.projectFolder)
-            ProjectMakerLogic.projectPath = ProjectMakerLogic.projectFolder + "/" + ProjectMakerLogic.projectTitle + ".osm"
-            ProjectMakerLogic.projectSet = True
-            with open(ProjectMakerLogic.projectPath, 'w+') as f: #creating the main OSM file
+            os.mkdir(CurrentProject.folder)
+            CurrentProject.path = CurrentProject.folder + "/" + CurrentProject.title + ".osm"
+            CurrentProject.set = True
+            with open(CurrentProject.path, 'w+') as f: #creating the main OSM file
                 f.write("")
-            ProjectMakerLogic.chapterFolder = ProjectMakerLogic.projectFolder + "chapters/"
-            os.mkdir(ProjectMakerLogic.chapterFolder)
+            os.mkdir(CurrentProject.chapterFolder)
             print("chapter folder made")
 
 
@@ -88,7 +94,7 @@ class ProjectMakerGUI(QDialog):
             logging.info("Oops! No new project created.")
 
         def cleanTitle():
-            ProjectMakerLogic.projectTitle = re.sub('[^A-Za-z0-9 ]+', '', self.projectNamer.text())
+            CurrentProject.title = re.sub('[^A-Za-z0-9 ]+', '', self.projectNamer.text())
 
         self.projectNamer.textChanged.connect(buttonToggle)
 
@@ -97,7 +103,7 @@ class ProjectMakerGUI(QDialog):
         layout.addWidget(cancel)
 
         button.clicked.connect(cleanTitle)
-        button.clicked.connect(ProjectMakerLogic.makeNew)
+        button.clicked.connect(ProjectStarterLogic.makeNew)
         button.clicked.connect(self.accept)
 
         cancel.clicked.connect(cancelPrompt)
